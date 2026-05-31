@@ -966,21 +966,29 @@ async function startServer() {
   // Let's connect to MySQL if environment keys are in place
   await initMySQL();
 
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  const hasDist = fs.existsSync(distPath) && fs.existsSync(path.join(distPath, "index.html"));
+
+  if (hasDist) {
+    console.log("Serving static production files from dist directory...");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else if (process.env.NODE_ENV !== "production") {
+    console.log("No built static files found. Initializing Vite development server...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.status(500).send("No static web build files found in 'dist' directory. Please run 'npm run build' first.");
     });
   }
 
-  const isPipe = typeof PORT === "string" && (PORT.startsWith("\\\\") || PORT.indexOf("\\pipe\\") !== -1);
+  const isPipe = typeof PORT === "string" && (PORT.startsWith("\\\\") || PORT.indexOf("\\pipe\\") !== -1 || PORT.indexOf(".pipe") !== -1);
   if (isPipe) {
     app.listen(PORT, () => {
       console.log(`Server is running on IIS named pipe: ${PORT}`);
