@@ -1,11 +1,33 @@
-import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react()],
+    css: {
+      postcss: {
+        plugins: [
+          tailwindcss({
+            content: [
+              "./index.html",
+              "./src/**/*.{js,ts,jsx,tsx}",
+            ],
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ["Sarabun", "Prompt", "Inter", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+                  mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+                },
+              },
+            },
+          }),
+          autoprefixer(),
+        ],
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
