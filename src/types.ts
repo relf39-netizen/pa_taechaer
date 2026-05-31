@@ -18,6 +18,19 @@ export interface Teacher {
   headerImage?: string; // base64 / URL สำหรับแบนเนอร์เฮดเดอร์
   avatarImage?: string; // base64 / URL สำหรับรูปประจำตัวผู้ยื่นประเมิน
   themeColor?: string; // ธีมสี ตกแต่งอย่างสวยงาม (เช่น blue, green, violet, gold, slate, rose)
+  role?: 'teacher' | 'school_admin'; // บทบาท (ครูทั่วไป หรือ แอดมินโรงเรียน)
+  schoolSmissCode?: string; // รหัส SMISS 8 หลัก ของโรงเรียนที่สังกัด
+}
+
+export interface School {
+  smissCode: string; // รหัส SMISS 8 หลัก
+  name: string; // ชื่อโรงเรียน
+  affiliation: string; // สังกัด
+  status: 'pending' | 'approved'; // สถานะอนุมัติจาก Super Admin
+  adminTeacherId?: string; // ครูแอดมินหลักของโรงเรียน
+  directorName?: string; // ชื่อประธานกรรมการประเมิน (ผู้อำนวยการโรงเรียน)
+  paCommitteeMembers?: string[]; // รายชื่อคณะกรรมการประเมินท่านอื่น
+  dateCreated: string;
 }
 
 export interface EvidenceLink {
@@ -57,6 +70,7 @@ export interface TeacherData {
 
 export interface DBState {
   teachers: Record<string, Teacher>; // teacherId or email as key
+  schools: Record<string, School>; // smissCode as key
   teacherDataList: Record<string, TeacherData>; // teacherId as key
   adminConfig: {
     username: string;

@@ -16,14 +16,25 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
   const [loginRole, setLoginRole] = useState<"teacher" | "admin">("teacher");
 
   // Registration states
+  const [regType, setRegType] = useState<"teacher" | "school">("teacher");
+  
+  // 1) General teacher signup
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPosition, setRegPosition] = useState("ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)");
-  const [regSchool, setRegSchool] = useState("โรงเรียนบ้านหนองหว้า");
-  const [regAffiliation, setRegAffiliation] = useState("สำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3");
+  const [regSchool, setRegSchool] = useState("");
+  const [regAffiliation, setRegAffiliation] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regSlug, setRegSlug] = useState("");
   const [regAcademicYear, setRegAcademicYear] = useState("2569");
+  const [schoolSmissCode, setSchoolSmissCode] = useState("");
+  const [detectedSchoolName, setDetectedSchoolName] = useState("");
+  const [schools, setSchools] = useState<any[]>([]);
+
+  // 2) School system register (8-digit SMISS)
+  const [regSchoolSmissCode, setRegSchoolSmissCode] = useState("");
+  const [regSchoolName, setRegSchoolName] = useState("");
+  const [regSchoolAffiliation, setRegSchoolAffiliation] = useState("");
 
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +59,52 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
       setRegSlug(engApprox);
     }
   }, [regName, activeTab]);
+
+  // Load schools list on tab shift to assist signup selection
+  useEffect(() => {
+    if (activeTab === "register") {
+      const fetchSchools = async () => {
+        try {
+          const response = await fetch("/api/schools");
+          const resData = await response.json();
+          if (resData.success) {
+            setSchools(resData.schools || []);
+          }
+        } catch (err) {
+          console.error("Error fetching schools list:", err);
+        }
+      };
+      fetchSchools();
+    }
+  }, [activeTab]);
+
+  // Reactive SMISS code lookup helper
+  useEffect(() => {
+    if (schoolSmissCode.length === 8) {
+      const match = schools.find(s => s.smissCode === schoolSmissCode);
+      if (match) {
+        if (match.status === "approved") {
+          setDetectedSchoolName(`✅ โรงเรียน: ${match.name} | ${match.affiliation}`);
+          setRegSchool(match.name);
+          setRegAffiliation(match.affiliation);
+        } else {
+          setDetectedSchoolName("⚠️ โรงเรียนนี้ส่งคำขอจดทะเบียนแล้ว แต่ยังไม่ได้รับการอนุมัติใช้งานจากแอดมินกลาง");
+          setRegSchool("");
+          setRegAffiliation("");
+        }
+      } else {
+        setDetectedSchoolName("❌ ไม่พบสำนักรหัสโรงเรียนนี้ในระบบ (กรุณาให้แอดมินขอจัดตั้งโรงเรียนนี้ก่อน)");
+        setRegSchool("");
+        setRegAffiliation("");
+      }
+    } else if (schoolSmissCode.length > 0) {
+      setDetectedSchoolName("ระบุรหัสประจำโรงเรียน 8 หลักเพื่อตรวจสอบ...");
+      setRegSchool("");
+      setRegAffiliation("");
+    } else {
+      setDetectedSchoolName("");
+    }
+  }, [schoolSmissCode, schools]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,50 +143,102 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
     setMessage(null);
     setIsLoading(true);
 
-    if (!regName.trim() || !regEmail.trim() || !regSlug.trim() || !regSchool.trim()) {
-      setMessage({ type: "error", text: "กรุณาระบุข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ-นามสกุล, อีเมล, โรงเรียน, แอดเดรสลิงก์)" });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: regName.trim(),
-          email: regEmail.trim(),
-          position: regPosition,
-          school: regSchool.trim(),
-          affiliation: regAffiliation.trim(),
-          phone: regPhone.trim(),
-          slug: regSlug.trim().toLowerCase(),
-          academicYear: regAcademicYear
-        }),
-      });
-
-      const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData.message || "การลงทะเบียนเกิดข้อผิดพลาด");
+    if (regType === "school") {
+      if (!regSchoolSmissCode.trim() || !regSchoolName.trim() || !regName.trim() || !regEmail.trim() || !regSlug.trim()) {
+        setMessage({ type: "error", text: "กรุณาระบุข้อมูลที่จำเป็นสำหรับการขอจัดตั้งและครูดูแลหลัก (School Admin) ให้ครบถ้วน" });
+        setIsLoading(false);
+        return;
       }
 
-      setMessage({ type: "success", text: resData.message });
-      // Clear registration inputs
-      setRegName("");
-      setRegEmail("");
-      setRegSchool("");
-      setRegPhone("");
-      // Automatically switch to login tab and prefill email
-      setLoginEmail(regEmail);
-      setLoginRole("teacher");
-      setTimeout(() => {
-        setActiveTab("login");
-        setMessage({ type: "success", text: "สมัครสิทธิ์แล้ว! บัญชีสิทธิ์จำลองจะสามารถเข้าสู่ระบบเพื่อใช้งานได้หลังจากรับอนุมัติ หรือสามารถเข้าใช้งานด้วยอีเมลสาธิต: mana@samsen.ac.th" });
-      }, 2000);
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message });
-    } finally {
-      setIsLoading(false);
+      try {
+        const response = await fetch("/api/schools/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            smissCode: regSchoolSmissCode.trim(),
+            schoolName: regSchoolName.trim(),
+            affiliation: regSchoolAffiliation.trim(),
+            adminName: regName.trim(),
+            adminEmail: regEmail.trim(),
+            adminPhone: regPhone.trim(),
+            slug: regSlug.trim().toLowerCase(),
+            position: regPosition,
+            academicYear: regAcademicYear
+          }),
+        });
+
+        const resData = await response.json();
+        if (!response.ok) {
+          throw new Error(resData.message || "การขอจัดตั้งโรงเรียนเกิดข้อผิดพลาด");
+        }
+
+        setMessage({ type: "success", text: resData.message });
+        setRegSchoolSmissCode("");
+        setRegSchoolName("");
+        setRegName("");
+        setRegEmail("");
+        setRegPhone("");
+        setRegSlug("");
+
+        setTimeout(() => {
+          setActiveTab("login");
+          setMessage({ type: "success", text: "ส่งคำขอจัดตั้งโรงเรียนแล้ว! ครูแอดมิน (School Admin) จะสามารถล็อกอินได้หลังผู้ดูแลระบบสูงสุดอนุมัติ" });
+        }, 3000);
+      } catch (err: any) {
+        setMessage({ type: "error", text: err.message });
+      } finally {
+        setIsLoading(false);
+      }
+    } else { // regType === "teacher"
+      if (!regName.trim() || !regEmail.trim() || !regSlug.trim() || !schoolSmissCode.trim() || !regSchool.trim()) {
+        setMessage({ type: "error", text: "กรุณากรอกรหัสประจำโรงเรียน 8 หลักและตรวจสอบความถูกต้อง โรงเรียนปลายทางต้องได้รับการจดทะเบียนก่อนคุณเข้าร่วม" });
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: regName.trim(),
+            email: regEmail.trim(),
+            position: regPosition,
+            schoolSmissCode: schoolSmissCode.trim(),
+            school: regSchool.trim(),
+            affiliation: regAffiliation.trim(),
+            phone: regPhone.trim(),
+            slug: regSlug.trim().toLowerCase(),
+            academicYear: regAcademicYear
+          }),
+        });
+
+        const resData = await response.json();
+        if (!response.ok) {
+          throw new Error(resData.message || "การลงทะเบียนเกิดข้อผิดพลาด");
+        }
+
+        setMessage({ type: "success", text: resData.message });
+        setRegName("");
+        setRegEmail("");
+        setSchoolSmissCode("");
+        setRegSchool("");
+        setRegPhone("");
+        setRegSlug("");
+
+        // Automatically prefill login with successful email
+        setLoginEmail(regEmail);
+        setLoginRole("teacher");
+
+        setTimeout(() => {
+          setActiveTab("login");
+          setMessage({ type: "success", text: "ส่งใบสมัครสมาชิกแล้ว! คุณจะเข้าสู่ระบบได้หลังจาก ครูแอดมินโรงเรียน ของคุณกดอนุมัติขอบัญชีของท่าน" });
+        }, 3000);
+      } catch (err: any) {
+        setMessage({ type: "error", text: err.message });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -283,199 +392,275 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
 
             {/* TAB 2: REGISTER (New teacher signup) */}
             {activeTab === "register" && (
-              <motion.form 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                onSubmit={handleRegister}
-                className="space-y-5"
-                id="register-form"
+                className="space-y-6"
               >
                 <div>
                   <h3 className="text-xl font-bold font-sans text-slate-800 mb-1">
-                    ขอขึ้นทะเบียนลิงก์และบัญชีครูผู้สอน
+                    สมัครขอเปิดสิทธิ์ใช้งานระบบ
                   </h3>
                   <p className="text-sm font-sans text-slate-500">
-                    ในการขึ้นทะเบียน คุณครูจะได้รับ ลิงก์ข้อตกลงในการพัฒนางาน (PA) ของคุณครูโดยอัตโนมัติ สำหรับจัดส่งให้คณะกรรมการประเมินของโรงเรียนท่านได้ทันที
+                    เลือกสิทธิ์ผู้รับประโยชน์เพื่อดำเนินการขอเข้าใช้ระบบบันทึกความตกลงการพัฒนางาน (OBEC PA)
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      ชื่อ-นามสกุล (พร้อมคำนำหน้า) <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
-                        placeholder="ครูสมคิด มุ่งมั่น"
-                        className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-name-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      อีเมลสิทธิ์ใช้งาน <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="email"
-                        required
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                        placeholder="somkid@school.go.th"
-                        className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-email-input"
-                      />
-                    </div>
-                  </div>
+                {/* Sub-tab switcher: Teacher vs. School Admin */}
+                <div className="flex p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => { setRegType("teacher"); setMessage(null); }}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg font-sans transition-all cursor-pointer ${regType === "teacher" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    คุณครูทั่วไป (ร่วมเครือข่ายโรงเรียน)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRegType("school"); setMessage(null); }}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg font-sans transition-all cursor-pointer ${regType === "school" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    ขอจัดตั้งโรงเรียนใหม่ (แอดมินโรงเรียน)
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      วิทยฐานะตามมาตรฐานตำแหน่ง
-                    </label>
-                    <select
-                      value={regPosition}
-                      onChange={(e) => setRegPosition(e.target.value)}
-                      className="block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                      id="reg-position-select"
-                    >
-                      <option value="ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)">ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)</option>
-                      <option value="ครูวิทยฐานะชำนาญการ">ครูวิทยฐานะชำนาญการ</option>
-                      <option value="ครูวิทยฐานะชำนาญการพิเศษ">ครูวิทยฐานะชำนาญการพิเศษ</option>
-                      <option value="ครูวิทยฐานะเชี่ยวชาญ">ครูวิทยฐานะเชี่ยวชาญ</option>
-                      <option value="ครูวิทยฐานะเชี่ยวชาญพิเศษ">ครูวิทยฐานะเชี่ยวชาญพิเศษ</option>
-                      <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      เบอร์โทรศัพท์ติดต่อ
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Phone className="h-4 w-4 text-slate-400" />
+                <form onSubmit={handleRegister} className="space-y-5" id="register-form">
+                  {regType === "school" ? (
+                    /* SCHOOL REGISTER FORM FIELDS */
+                    <div className="space-y-4">
+                      <div className="p-3.5 bg-cyan-50 border border-cyan-100 rounded-xl text-xs text-slate-700 leading-relaxed">
+                        🏫 <strong>การจัดตั้งระบบโรงเรียนใหม่:</strong> กรอกรหัส SMISS 8 หลัก เพื่อขออนุญาต Super Admin ให้เปิดใช้บริการฐานข้อมูลแบบฟอร์มโรงเรียนของท่าน เมื่อได้รับการอนุมัติแล้ว ครูผู้ยื่นขอจะได้รับสิทธิ์เป็น <strong>School Admin (แอดมินโรงเรียน)</strong> เพื่อเพิ่ม/ดูแลคุณครูและกำหนดกรรมการประเมินของสถาบันได้เอง
                       </div>
-                      <input
-                        type="text"
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="08X-XXXXXXX"
-                        className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-phone-input"
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      สถาบันการศึกษา / โรงเรียน <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <School className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={regSchool}
-                        onChange={(e) => setRegSchool(e.target.value)}
-                        placeholder="ระบุชื่อเต็มโรงเรียน เช่น โรงเรียนบ้านดอนวิทยาธิการ"
-                        className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-school-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                      สังกัดเขตพื้นที่ / อบจ. / อื่นๆ
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Landmark className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        value={regAffiliation}
-                        onChange={(e) => setRegAffiliation(e.target.value)}
-                        placeholder="สำนักงานเขตพื้นที่การศึกษาประถมศึกษาพระนครศรีอยุธยา เขต 1"
-                        className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-affiliation-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                        ปีงบประมาณที่เริ่มต้นทำข้อตกลง
-                      </label>
-                      <select
-                        value={regAcademicYear}
-                        onChange={(e) => setRegAcademicYear(e.target.value)}
-                        className="block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                        id="reg-year-select"
-                      >
-                        <option value="2569">ปีงบประมาณ 2569</option>
-                        <option value="2568">ปีงบประมาณ 2568</option>
-                        <option value="2567">ปีงบประมาณ 2567</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                        ชื่อลิงก์ประเมินที่ต้องการ (Slug) <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Globe className="h-4 w-4 text-slate-400" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                            รหัส SMISS โรงเรียน (8 หลัก) <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={8}
+                            value={regSchoolSmissCode}
+                            onChange={(e) => setRegSchoolSmissCode(e.target.value.replace(/\D/g, ""))}
+                            placeholder="ระบุรหัส 8 หลัก เช่น 10300101"
+                            className="block w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                          />
                         </div>
-                        <input
-                          type="text"
-                          required
-                          value={regSlug}
-                          onChange={(e) => setRegSlug(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
-                          placeholder="เช่น somkid-pa"
-                          className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans font-mono"
-                          id="reg-slug-input"
-                        />
+
+                        <div>
+                          <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                            ชื่อสถานศึกษา/โรงเรียนเต็ม <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={regSchoolName}
+                            onChange={(e) => setRegSchoolName(e.target.value)}
+                            placeholder="เช่น โรงเรียนบ้านหนองหว้า"
+                            className="block w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                          />
+                        </div>
                       </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          สำนักงานสังกัดเขตพื้นที่การศึกษา <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Landmark className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={regSchoolAffiliation}
+                            onChange={(e) => setRegSchoolAffiliation(e.target.value)}
+                            placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* TEACHER JOIN FORM FIELDS */
+                    <div className="space-y-4">
+                      <div className="p-3.5 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 leading-relaxed">
+                        🧩 <strong>คุณครูร่วมเครือข่าย:</strong> กรอกรหัส SMISS 8 หลัก เพื่อค้นหาโรงเรียนสังกัดเดิมที่แอดมินขอยื่นจัดตั้งไว้ เมื่อลงทะเบียนแล้ว แอดมินโรงเรียนของคุณจะกดตรวจสอบตอบรับอนุมัติเข้าประเมินงาน
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          รหัส SMISS โรงเรียนสังกัด (8 หลัก) <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <School className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            maxLength={8}
+                            value={schoolSmissCode}
+                            onChange={(e) => setSchoolSmissCode(e.target.value.replace(/\D/g, ""))}
+                            placeholder="ระบุรหัส 8 หลัก เช่น 10300101"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans font-semibold text-slate-800 tracking-wider"
+                            id="reg-smiss-input"
+                          />
+                        </div>
+                        {detectedSchoolName && (
+                          <p className={`mt-2 text-xs font-bold font-sans px-1 ${detectedSchoolName.startsWith("✅") ? "text-emerald-600" : "text-amber-600"}`}>
+                            {detectedSchoolName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* COMMON PROFILE DETAILS */}
+                  <div className="border-t border-slate-100 pt-4 space-y-4">
+                    <p className="text-xs font-bold font-sans text-slate-700 uppercase tracking-wide">
+                      ข้อมูลสิทธิ์ส่วนบุคคล {regType === "school" ? "(แอดมินดูแลหลัก)" : "(คุณครูผู้เขียนเป้าหมาย)"}
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          ชื่อ-นามสกุลของคุณครู <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <User className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={regName}
+                            onChange={(e) => setRegName(e.target.value)}
+                            placeholder="ครูสมคิด มุ่งมั่น"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                            id="reg-name-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          อีเมลสิทธิ์ใช้งาน (ใช้ในการเข้าสู่ระบบ) <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Mail className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="email"
+                            required
+                            value={regEmail}
+                            onChange={(e) => setRegEmail(e.target.value)}
+                            placeholder="somkid@school.go.th"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                            id="reg-email-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          วิทยฐานะตามมาตรฐานตำแหน่ง
+                        </label>
+                        <select
+                          value={regPosition}
+                          onChange={(e) => setRegPosition(e.target.value)}
+                          className="block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                          id="reg-position-select"
+                        >
+                          <option value="ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)">ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)</option>
+                          <option value="ครูวิทยฐานะชำนาญการ">ครูวิทยฐานะชำนาญการ</option>
+                          <option value="ครูวิทยฐานะชำนาญการพิเศษ">ครูวิทยฐานะชำนาญการพิเศษ</option>
+                          <option value="ครูวิทยฐานะเชี่ยวชาญ">ครูวิทยฐานะเชี่ยวชาญ</option>
+                          <option value="ครูวิทยฐานะเชี่ยวชาญพิเศษ">ครูวิทยฐานะเชี่ยวชาญพิเศษ</option>
+                          <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          เบอร์โทรศัพท์ติดต่อ
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Phone className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="text"
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            placeholder="08X-XXXXXXX"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                            id="reg-phone-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          ปีงบประมาณที่เริ่มต้นทำข้อตกลง
+                        </label>
+                        <select
+                          value={regAcademicYear}
+                          onChange={(e) => setRegAcademicYear(e.target.value)}
+                          className="block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
+                          id="reg-year-select"
+                        >
+                          <option value="2569">ปีงบประมาณ 2569</option>
+                          <option value="2568">ปีงบประมาณ 2568</option>
+                          <option value="2567">ปีงบประมาณ 2567</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                          ชื่อลิงก์ประเมินที่ต้องการ (Slug) <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Globe className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={regSlug}
+                            onChange={(e) => setRegSlug(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
+                            placeholder="เช่น somkid-pa"
+                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans font-mono"
+                            id="reg-slug-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                      🎈 ลิงก์แฟ้มรายงานตัวชี้วัด PA ที่เครื่องคณะกรรมการเปิดดูได้: <br />
+                      <span className="font-mono text-amber-600 font-semibold select-all break-all">
+                        {window.location.origin}/?p={regSlug || "(ชื่อลิงก์)"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                    🎈 ลิงก์ที่คณะกรรมการประเมินจะเข้ามาเห็นของคุณครู: <br />
-                    <span className="font-mono text-amber-600 font-semibold select-all break-all">
-                      {window.location.origin}/?p={regSlug || "(ชื่อลิงก์)"}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center items-center gap-2 py-3 bg-amber-500 border-none rounded-xl text-slate-950 font-sans text-sm font-semibold shadow-md hover:bg-amber-400 transition-colors cursor-pointer focus:outline-shadow disabled:opacity-50"
-                  id="reg-submit-btn"
-                >
-                  {isLoading ? "กำลังตรวจสอบข้อมูล..." : "ดำเนินการสมัครสิทธิ์ส่งให้แอดมินอนุมัติ"}
-                </button>
-              </motion.form>
+                  <button
+                    type="submit"
+                    disabled={isLoading || (regType === "teacher" && !regSchool)}
+                    className="w-full flex justify-center items-center gap-2 py-3 bg-amber-500 border-none rounded-xl text-slate-950 font-sans text-sm font-semibold shadow-md hover:bg-amber-400 transition-colors cursor-pointer focus:outline-shadow disabled:opacity-50"
+                    id="reg-submit-btn"
+                  >
+                    {isLoading ? "กำลังประมวลผลคำขอ..." : "ดำเนินการสมัครสิทธิ์ส่งขออนุมัติ"}
+                  </button>
+                </form>
+              </motion.div>
             )}
           </div>
         </div>

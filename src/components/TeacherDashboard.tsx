@@ -15,7 +15,7 @@ interface TeacherDashboardProps {
 
 export default function TeacherDashboard({ initialData, onLogout }: TeacherDashboardProps) {
   const [data, setData] = useState<TeacherData>(initialData);
-  const [activeMenu, setActiveMenu] = useState<"profile" | "part1" | "part2" | "preview">("part1");
+  const [activeMenu, setActiveMenu] = useState<"profile" | "part1" | "part2" | "preview" | "school_manage">("part1");
   
   // Profile edit state
   const [name, setName] = useState(data.teacher.name);
@@ -44,6 +44,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [chalStatus, setChalStatus] = useState<'not_started' | 'in_progress' | 'completed'>(data.challenge?.status || "not_started");
   const [chalLinks, setChalLinks] = useState<EvidenceLink[]>(data.challenge?.evidenceLinks || []);
 
+  // School Admin states
+  const [directorName, setDirectorName] = useState("");
+  const [committeeMembers, setCommitteeMembers] = useState<{ id: string; name: string; title: string }[]>([]);
+  const [schoolTeachers, setSchoolTeachers] = useState<Teacher[]>([]);
+  const [isSchoolLoading, setIsSchoolLoading] = useState(false);
+  const [newCommName, setNewCommName] = useState("");
+  const [newCommTitle, setNewCommTitle] = useState("ผู้ทรงคุณวุฒิ");
+
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -53,6 +61,110 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setTimeout(() => {
       setToast(null);
     }, 3000);
+  };
+
+  // Fetch school configuration data
+  const loadSchoolConfiguration = async () => {
+    if (!data.teacher.schoolSmissCode) return;
+    setIsSchoolLoading(true);
+    try {
+      const sRes = await fetch("/api/schools");
+      const sData = await sRes.json();
+      if (sData.success) {
+        const mySchool = sData.schools?.find((s: any) => s.smissCode === data.teacher.schoolSmissCode);
+        if (mySchool) {
+          setDirectorName(mySchool.directorName || "");
+          setCommitteeMembers(mySchool.paCommitteeMembers || []);
+        }
+      }
+
+      const tRes = await fetch(`/api/school/teachers?smissCode=${data.teacher.schoolSmissCode}`);
+      const tData = await tRes.json();
+      if (tData.success) {
+        setSchoolTeachers(tData.teachers || []);
+      }
+    } catch (e) {
+      console.error("Error loading admin school tools:", e);
+    } finally {
+      setIsSchoolLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeMenu === "school_manage") {
+      loadSchoolConfiguration();
+    }
+  }, [activeMenu]);
+
+  // Save Committee & Director
+  const handleSaveCommittee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/school/committee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: data.teacher.schoolSmissCode,
+          directorName,
+          paCommitteeMembers: committeeMembers
+        })
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        triggerToast("success", "บันทึกรายชื่อผู้อำนวยการและกรรรมการประเมิน PA เรียบร้อยเเล้ว");
+      } else {
+        throw new Error(resData.message || "เกิดข้อผิดพลาด");
+      }
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Add Committee member tag
+  const handleAddCommitteeMember = () => {
+    if (!newCommName.trim()) {
+      triggerToast("error", "กรุณากรอกชื่อ-นามสกุลกรรมการประเมิน");
+      return;
+    }
+    const newM = {
+      id: "comm-" + Date.now(),
+      name: newCommName.trim(),
+      title: newCommTitle
+    };
+    setCommitteeMembers(prev => [...prev, newM]);
+    setNewCommName("");
+  };
+
+  // Remove Committee member tag
+  const handleRemoveCommitteeMember = (id: string) => {
+    setCommitteeMembers(prev => prev.filter(m => m.id !== id));
+  };
+
+  // Update School Teacher approval state status 
+  const handleUpdateTeacherStatus = async (teacherId: string, status: string) => {
+    try {
+      const res = await fetch("/api/school/teachers/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherId,
+          status,
+          smissCode: data.teacher.schoolSmissCode
+        })
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        triggerToast("success", resData.message || "ดำเนินการเสร็จสิ้น");
+        setSchoolTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, status } : t));
+      } else {
+        throw new Error(resData.message || "เกิดข้อผิดพลาดในการเปลี่ยนสิทธิ์");
+      }
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    }
   };
 
   // 1. Update Profile API
@@ -334,6 +446,17 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                 <Eye className="w-4 h-4" />
                 ดูตัวอย่างหน้าคณะกรรมการ (Live)
               </button>
+
+              {data.teacher.role === "school_admin" && (
+                <button
+                  onClick={() => setActiveMenu("school_manage")}
+                  className={`w-full text-left px-4 py-2.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 border-none cursor-pointer ${activeMenu === "school_manage" ? "bg-amber-100 text-amber-900 border-l-4 border-l-amber-500 font-semibold" : "text-amber-800 hover:bg-amber-50/60"}`}
+                  id="menu-school-manage"
+                >
+                  <School className="w-4 h-4 text-amber-600" />
+                  จัดการข้อมูลโรงเรียนและอนุมัติคุณครู
+                </button>
+              )}
             </div>
           </div>
 
@@ -880,6 +1003,234 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 5: SCHOOL ADMIN MANAGEMENT CONTROL PANEL */}
+          {activeMenu === "school_manage" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-750 to-indigo-900 text-white p-6 rounded-xl shadow-md border-b-4 border-[#facc15]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-[#facc15] text-[#1e3a8a] rounded-lg">
+                      <School className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold font-sans">
+                        แผงควบคุมระบบจัดตั้งและบริหารโรงเรียน
+                      </h2>
+                      <p className="text-xs text-blue-100 font-sans mt-0.5">
+                        โรงเรียนสังกัด: {data.teacher.school} &bull; รหัส SMISS: {data.teacher.schoolSmissCode}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={loadSchoolConfiguration}
+                    className="self-start sm:self-auto px-3.5 py-1.5 bg-white/10 hover:bg-white/25 text-white border-none text-xs rounded-lg transition-colors cursor-pointer"
+                  >
+                    🔄 รีเฟรชฐานข้อมูลครู
+                  </button>
+                </div>
+              </div>
+
+              {isSchoolLoading ? (
+                <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-solid border-amber-500 border-r-transparent mb-3"></div>
+                  <p className="text-sm text-slate-500">กำลังโหลดฐานข้อมูลโรงเรียนและรายชื่อสมาชิกครู...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  
+                  {/* LEFT COLUMN: COMMITTEE & DIRECTOR FOR PA */}
+                  <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="pb-3 border-b border-slate-100 mb-4">
+                        <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                          👨‍⚖️ คณะกรรมการประเมินข้อตกลง PA
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          ผู้อำนวยการและคณะกรรมการชุดนี้ จะถูกดึงไปแสดงในหน้าพอร์ตโฟลิโอแฟ้มสะสมผลงานด้านกรรมการของครูทุกคนในโรงเรียน
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleSaveCommittee} className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            ผู้อำนวยการโรงเรียน (ประธานคณะกรรมการ) <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={directorName}
+                            onChange={(e) => setDirectorName(e.target.value)}
+                            placeholder="เช่น นายสมยศ รักเรียน (ผอ.โรงเรียน)"
+                            className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-sans"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-2">
+                            รายชื่อกรรมการร่วมประเมิน (เพิ่มเติม)
+                          </label>
+
+                          {committeeMembers.length === 0 ? (
+                            <div className="text-[11px] text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-dashed border-slate-200 text-center">
+                              ยังไม่มีรายชื่อคณะกรรมการร่วมประเมินเพิ่มเติม
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                              {committeeMembers.map((member) => (
+                                <div key={member.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-xs">
+                                  <div>
+                                    <span className="font-semibold text-slate-800">{member.name}</span>
+                                    <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-705 px-1.5 py-0.5 rounded">
+                                      {member.title}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCommitteeMember(member.id)}
+                                    className="text-rose-500 hover:text-rose-600 p-1 border-none bg-transparent cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Quick Add committee member */}
+                          <div className="mt-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                ชื่อ-นามสกุล และวิทยฐานะกรรมการหลัก
+                              </label>
+                              <input
+                                type="text"
+                                value={newCommName}
+                                onChange={(e) => setNewCommName(e.target.value)}
+                                placeholder="เช่น ดร.วิทยา ใจแข็ง (ศึกษานิเทศก์ชำนาญการ)"
+                                className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                  ตำแหน่งในบอร์ด
+                                </label>
+                                <select
+                                  value={newCommTitle}
+                                  onChange={(e) => setNewCommTitle(e.target.value)}
+                                  className="block w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                >
+                                  <option value="ผู้ทรงคุณวุฒิ">ผู้ทรงคุณวุฒิ</option>
+                                  <option value="ผู้ทรงคุณวุฒิภายนอก">ผู้ทรงคุณวุฒิภายนอก</option>
+                                  <option value="ศึกษานิเทศก์">ศึกษานิเทศก์</option>
+                                  <option value="กรรมการร่วม">กรรมการร่วม</option>
+                                </select>
+                              </div>
+                              <div className="flex items-end">
+                                <button
+                                  type="button"
+                                  onClick={handleAddCommitteeMember}
+                                  className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold border-none cursor-pointer"
+                                >
+                                  เพิ่มเข้ารายชื่อ
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="flex items-center gap-1 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs border-none cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            {isSaving ? "กำลังบันทึก..." : "บันทึกตั้งค่ากรรมการ & ผอ."}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  {/* RIGHT COLUMN: AFFILIATED TEACHERS LIST */}
+                  <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="pb-3 border-b border-slate-105 mb-4">
+                        <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                          👥 รายชื่อคุณครูผู้สมัครเข้าใช้ระบบสังกัดโรงเรียนของท่าน ({schoolTeachers.length} คน)
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          คุณต้องอนุมัติสิทธิ์ให้ครูในเครือข่ายเปิดใช้งาน หรือสามารถระงับสิทธิ์ชั่วคราวได้ตลอดเวลาเพื่อความปลอดภัย
+                        </p>
+                      </div>
+
+                      {schoolTeachers.length === 0 ? (
+                        <div className="text-center py-10 text-slate-400 italic font-sans text-xs">
+                          ยังไม่มีบัญชีคุณครูสังกัดรหัส SMISS เดียวกันขึ้นทะเบียนในระบบ
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
+                          {schoolTeachers.map((teacher) => (
+                            <div 
+                              key={teacher.id} 
+                              className="p-3.5 bg-slate-50/70 hover:bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-sm">
+                                    {teacher.name}
+                                  </span>
+                                  {teacher.status === "approved" ? (
+                                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      อนุมัติแล้ว
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                      รอการตรวจสอบ
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-sans space-y-0.5">
+                                  <p>วิทยฐานะ: {teacher.position}</p>
+                                  <p className="font-mono">อีเมล: {teacher.email} &bull; เบอร์โทร: {teacher.phone || "-"}</p>
+                                  <p className="text-amber-600 font-semibold break-all">
+                                    ลิงก์รายงาน PA: <a href={`/?p=${teacher.slug}`} target="_blank" rel="noreferrer" className="underline hover:text-amber-700">/?p={teacher.slug}</a>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 sm:self-center">
+                                {teacher.status !== "approved" ? (
+                                  <button
+                                    onClick={() => handleUpdateTeacherStatus(teacher.id, "approved")}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold border-none cursor-pointer shadow-sm"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    อนุมัติสิทธิ์
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleUpdateTeacherStatus(teacher.id, "pending")}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold border border-rose-205 cursor-pointer"
+                                  >
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    ระงับสิทธิ์ชั่วคราว
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              )}
             </div>
           )}
 

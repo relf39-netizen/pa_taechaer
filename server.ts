@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { createServer as createViteServer } from "vite";
-import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState } from "./src/types";
+import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState, School } from "./src/types";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
@@ -197,6 +197,8 @@ function getInitialState(): DBState {
       academicYear: "2569",
       status: "approved",
       dateCreated: new Date().toISOString(),
+      role: "school_admin",
+      schoolSmissCode: "10300101"
     },
     "piti@triamudom.ac.th": {
       id: pitiId,
@@ -210,11 +212,25 @@ function getInitialState(): DBState {
       academicYear: "2569",
       status: "approved",
       dateCreated: new Date().toISOString(),
+      role: "teacher",
+      schoolSmissCode: "10300101"
     }
   };
 
   const dbState: DBState = {
     teachers: { ...defaultTeachers },
+    schools: {
+      "10300101": {
+        smissCode: "10300101",
+        name: "โรงเรียนบ้านหนองหว้า",
+        affiliation: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3",
+        status: "approved",
+        adminTeacherId: "t1-mana",
+        directorName: "นายวินัย ดีเสมอ",
+        paCommitteeMembers: ["นางเกษตร ชูธรรม", "นายปรีชา คุ้มครอง"],
+        dateCreated: new Date().toISOString()
+      }
+    },
     teacherDataList: {},
     adminConfig: {
       username: "admin",
@@ -310,7 +326,11 @@ function loadDatabase(): DBState {
   try {
     if (fs.existsSync(DB_FILE_PATH)) {
       const data = fs.readFileSync(DB_FILE_PATH, "utf-8");
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (!parsed.schools) {
+        parsed.schools = {};
+      }
+      return parsed;
     }
   } catch (error) {
     console.error("Error reading database file, using fallback:", error);
@@ -420,7 +440,31 @@ async function createMySQLTables() {
       \`date_created\` VARCHAR(50) NOT NULL,
       \`header_image\` LONGTEXT DEFAULT NULL,
       \`avatar_image\` LONGTEXT DEFAULT NULL,
-      \`theme_color\` VARCHAR(30) DEFAULT NULL
+      \`theme_color\` VARCHAR(30) DEFAULT NULL,
+      \`role\` VARCHAR(50) DEFAULT 'teacher',
+      \`school_smiss_code\` VARCHAR(20) DEFAULT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  // Alter for backward compatibility if columns aren't there
+  try {
+    await mysqlPool.query("ALTER TABLE `pa_teachers` ADD COLUMN `role` VARCHAR(50) DEFAULT 'teacher'");
+  } catch (e) {}
+  try {
+    await mysqlPool.query("ALTER TABLE `pa_teachers` ADD COLUMN `school_smiss_code` VARCHAR(20) DEFAULT NULL");
+  } catch (e) {}
+
+  // 1.5 Schools table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_schools\` (
+      \`smiss_code\` VARCHAR(10) NOT NULL PRIMARY KEY,
+      \`name\` VARCHAR(100) NOT NULL,
+      \`affiliation\` VARCHAR(100) NOT NULL,
+      \`status\` VARCHAR(20) NOT NULL DEFAULT 'pending',
+      \`admin_teacher_id\` VARCHAR(50) DEFAULT NULL,
+      \`director_name\` VARCHAR(100) DEFAULT NULL,
+      \`pa_committee_members\` TEXT DEFAULT NULL,
+      \`date_created\` VARCHAR(50) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
@@ -485,6 +529,8 @@ async function loadDataFromMySQL() {
         headerImage: row.header_image || undefined,
         avatarImage: row.avatar_image || undefined,
         themeColor: row.theme_color || undefined,
+        role: (row.role as 'teacher' | 'school_admin') || 'teacher',
+        schoolSmissCode: row.school_smiss_code || undefined,
       };
       loadedTeachers[teacher.email] = teacher;
 
@@ -514,6 +560,35 @@ async function loadDataFromMySQL() {
 
     localDB.teachers = loadedTeachers;
     localDB.teacherDataList = loadedTeacherDataList;
+
+    // Load schools list from MySQL
+    try {
+      const [schoolRows] = await mysqlPool.query<any[]>("SELECT * FROM `pa_schools`");
+      const loadedSchools: Record<string, School> = {};
+      for (const sRow of schoolRows) {
+        let members: string[] = [];
+        try {
+          members = sRow.pa_committee_members ? JSON.parse(sRow.pa_committee_members) : [];
+        } catch (e) {
+          members = [];
+        }
+        loadedSchools[sRow.smiss_code] = {
+          smissCode: sRow.smiss_code,
+          name: sRow.name,
+          affiliation: sRow.affiliation,
+          status: sRow.status as 'pending' | 'approved',
+          adminTeacherId: sRow.admin_teacher_id || undefined,
+          directorName: sRow.director_name || undefined,
+          paCommitteeMembers: members,
+          dateCreated: sRow.date_created
+        };
+      }
+      localDB.schools = loadedSchools;
+      console.log(`Success: Loaded ${schoolRows.length} schools from MySQL.`);
+    } catch (schoolLoadErr) {
+      console.error("Error loading schools from MySQL:", schoolLoadErr);
+    }
+
     console.log(`Success: Loaded ${teacherRows.length} teachers and data portfolios from MySQL.`);
   } else {
     console.log("No teacher accounts found in MySQL. Initializing MySQL tables with the local demo state...");
@@ -547,8 +622,8 @@ async function syncStateToMySQL(state: DBState) {
       const t = state.teachers[email];
       await mysqlPool.query(
         `INSERT INTO \`pa_teachers\` (
-          id, email, name, position, school, affiliation, phone, slug, academic_year, status, date_created, header_image, avatar_image, theme_color
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, email, name, position, school, affiliation, phone, slug, academic_year, status, date_created, header_image, avatar_image, theme_color, role, school_smiss_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           name = VALUES(name),
           position = VALUES(position),
@@ -560,7 +635,9 @@ async function syncStateToMySQL(state: DBState) {
           status = VALUES(status),
           header_image = VALUES(header_image),
           avatar_image = VALUES(avatar_image),
-          theme_color = VALUES(theme_color)`,
+          theme_color = VALUES(theme_color),
+          role = VALUES(role),
+          school_smiss_code = VALUES(school_smiss_code)`,
         [
           t.id,
           t.email,
@@ -575,7 +652,9 @@ async function syncStateToMySQL(state: DBState) {
           t.dateCreated,
           t.headerImage || null,
           t.avatarImage || null,
-          t.themeColor || null
+          t.themeColor || null,
+          t.role || 'teacher',
+          t.schoolSmissCode || null
         ]
       );
 
@@ -590,6 +669,45 @@ async function syncStateToMySQL(state: DBState) {
             challenge_json = VALUES(challenge_json),
             updated_at = VALUES(updated_at)`,
           [t.id, JSON.stringify(tData.indicators), JSON.stringify(tData.challenge), new Date().toISOString()]
+        );
+      }
+    }
+
+    // Sync schools
+    if (state.schools) {
+      // Sync deletion of schools
+      const [existingSchools] = await mysqlPool.query<any[]>("SELECT smiss_code FROM `pa_schools`");
+      const currentSmissCodes = new Set(Object.keys(state.schools));
+      for (const extS of existingSchools) {
+        if (!currentSmissCodes.has(extS.smiss_code)) {
+          await mysqlPool.query("DELETE FROM `pa_schools` WHERE smiss_code = ?", [extS.smiss_code]);
+        }
+      }
+
+      // Insert or update schools
+      for (const smissCode of Object.keys(state.schools)) {
+        const s = state.schools[smissCode];
+        await mysqlPool.query(
+          `INSERT INTO \`pa_schools\` (
+            smiss_code, name, affiliation, status, admin_teacher_id, director_name, pa_committee_members, date_created
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            affiliation = VALUES(affiliation),
+            status = VALUES(status),
+            admin_teacher_id = VALUES(admin_teacher_id),
+            director_name = VALUES(director_name),
+            pa_committee_members = VALUES(pa_committee_members)`,
+          [
+            s.smissCode,
+            s.name,
+            s.affiliation,
+            s.status,
+            s.adminTeacherId || null,
+            s.directorName || null,
+            s.paCommitteeMembers ? JSON.stringify(s.paCommitteeMembers) : null,
+            s.dateCreated
+          ]
         );
       }
     }
@@ -641,10 +759,27 @@ app.post("/api/auth/login", (req, res) => {
 
 // 2. Register Teacher API
 app.post("/api/auth/register", (req, res) => {
-  const { name, email, position, school, affiliation, phone, slug, academicYear } = req.body;
+  const { name, email, position, school, affiliation, phone, slug, academicYear, schoolSmissCode } = req.body;
 
-  if (!name || !email || !slug || !school) {
+  if (!name || !email || !slug) {
     return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
+  }
+
+  let finalSchool = school || "";
+  let finalAffiliation = affiliation || "";
+
+  if (schoolSmissCode) {
+    if (!localDB.schools || !localDB.schools[schoolSmissCode]) {
+      return res.status(400).json({ success: false, message: "ไม่พบรหัส SMISS 8 หลักนี้ในระบบ กรุณาตรวจสอบรหัสหรือสมัครแต่งตั้งระบบโรงเรียนใหม่ก่อน" });
+    }
+    const targetSchool = localDB.schools[schoolSmissCode];
+    if (targetSchool.status !== "approved") {
+      return res.status(400).json({ success: false, message: "โรงเรียนรหัส SMISS นี้ และพาร์ทเนอร์สิทธิ์ยังไม่ได้รับการอนุมัติใช้งานจากผู้ดูแลระบบสูงสุด" });
+    }
+    finalSchool = targetSchool.name;
+    finalAffiliation = targetSchool.affiliation;
+  } else if (!finalSchool) {
+    return res.status(400).json({ success: false, message: "กรุณากรอกโรงเรียนหรือระบุรหัส SMISS 8 หลัก" });
   }
 
   // Check if email already registered
@@ -664,13 +799,15 @@ app.post("/api/auth/register", (req, res) => {
     email,
     name,
     position: position || "ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)",
-    school,
-    affiliation: affiliation || "สำนักงานเขตพื้นที่การศึกษาประถมศึกษา",
+    school: finalSchool,
+    affiliation: finalAffiliation || "สำนักงานเขตพื้นที่การศึกษาประถมศึกษา",
     phone: phone || "",
     slug,
     academicYear: academicYear || "2569",
     status: "pending", // New registration needs admin approval
     dateCreated: new Date().toISOString(),
+    role: "teacher",
+    schoolSmissCode: schoolSmissCode || undefined
   };
 
   // Save teacher
@@ -687,7 +824,9 @@ app.post("/api/auth/register", (req, res) => {
 
   return res.json({
     success: true,
-    message: "สมัครขอใช้งานระบบเรียบร้อยแล้ว! กรุณารอผู้ดูแลระบบประเมินอนุมัติสิทธิ์ (สามารถใช้สิทธิ์ทดลองเข้าใช้งานจำลองได้ผ่านหน้าระบบแอดมิน)",
+    message: schoolSmissCode 
+      ? "สมัครเข้าใช้งานร่วมกับเครือข่ายโรงเรียนเรียบร้อยแล้ว! กรุณารอแอดมินโรงเรียนของคุณอนุมัติสิทธิ์การเข้าใช้งานพอร์ตโฟลิโอ"
+      : "สมัครขอใช้งานระบบเรียบร้อยแล้ว! กรุณารอผู้ดูแลระบบประเมินอนุมัติสิทธิ์ (สามารถใช้สิทธิ์ทดลองเข้าใช้งานจำลองได้ผ่านหน้าระบบแอดมิน)",
     teacher: newTeacher
   });
 });
@@ -957,6 +1096,196 @@ pause
     success: true,
     sql: sqlSchema,
     windows_script: windowsScript
+  });
+});
+
+
+// --- SCHOOLS & SCHOOL ADMIN APIS ---
+
+// POST /api/schools/register
+app.post("/api/schools/register", (req, res) => {
+  const { smissCode, schoolName, affiliation, adminName, adminEmail, adminPhone, slug, position, academicYear } = req.body;
+
+  if (!smissCode || !schoolName || !adminName || !adminEmail || !slug) {
+    return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
+  }
+
+  // Validate SMISS code
+  if (!/^\d{8}$/.test(smissCode)) {
+    return res.status(400).json({ success: false, message: "รหัส SMISS ต้องเป็นตัวเลข 8 หลักเท่านั้น" });
+  }
+
+  // Check if school already exists
+  if (localDB.schools && localDB.schools[smissCode]) {
+    return res.status(400).json({ success: false, message: "รหัส SMISS 8 หลักนี้ ถูกใช้ลงทะเบียนในระบบเรียบร้อยแล้ว" });
+  }
+
+  // Check if email already registered
+  if (localDB.teachers[adminEmail]) {
+    return res.status(400).json({ success: false, message: "อีเมลของผู้ดูแลระบบโรงเรียนผู้นี้ ลงทะเบียนทำงานในระบบอยู่แล้ว" });
+  }
+
+  // Check if public slug is unique
+  if (Object.values(localDB.teachers).some(t => t.slug === slug)) {
+    return res.status(400).json({ success: false, message: "คุณลักษณะชื่อลิงก์ URL อ้างอิง มีครูท่านอื่นใช้งานไปแล้วกรุณาระบุคำอื่น" });
+  }
+
+  const newTeacherId = "teacher-admin-" + Date.now();
+  const newSchool: School = {
+    smissCode,
+    name: schoolName,
+    affiliation: affiliation || "สำนักงานเขตพื้นที่การศึกษาประถมศึกษา",
+    status: "pending", // Waiting for Super Admin approval
+    adminTeacherId: newTeacherId,
+    directorName: "", // Set by school admin later
+    paCommitteeMembers: [],
+    dateCreated: new Date().toISOString()
+  };
+
+  const newAdminTeacher: Teacher = {
+    id: newTeacherId,
+    email: adminEmail,
+    name: adminName,
+    position: position || "ครู",
+    school: schoolName,
+    affiliation: affiliation || "สำนักงานเขตพื้นที่การศึกษาประถมศึกษา",
+    phone: adminPhone || "",
+    slug,
+    academicYear: academicYear || "2569",
+    status: "pending", // Pending school approval
+    dateCreated: new Date().toISOString(),
+    role: "school_admin",
+    schoolSmissCode: smissCode
+  };
+
+  // Ensure schools object exists
+  if (!localDB.schools) {
+    localDB.schools = {};
+  }
+
+  // Save school and admin teacher
+  localDB.schools[smissCode] = newSchool;
+  localDB.teachers[adminEmail] = newAdminTeacher;
+
+  // Initialize standard teacher data layout
+  localDB.teacherDataList[newTeacherId] = {
+    teacher: newAdminTeacher,
+    indicators: createDefaultIndicators(),
+    challenge: createDefaultChallenge()
+  };
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "ส่งคำขอจัดตั้งระบบโรงเรียนและสมัครครูดูแล (School Admin) เรียบร้อยแล้ว! กรุณารอ Super Admin อนุมัติสิทธิ์จัดตั้งโรงเรียนจึงจะสามารถเข้าใช้งานได้",
+    school: newSchool,
+    admin: newAdminTeacher
+  });
+});
+
+// GET /api/schools
+app.get("/api/schools", (req, res) => {
+  if (!localDB.schools) {
+    localDB.schools = {};
+  }
+  return res.json({
+    success: true,
+    schools: Object.values(localDB.schools)
+  });
+});
+
+// POST /api/admin/schools/approve
+app.post("/api/admin/schools/approve", (req, res) => {
+  const { smissCode, status } = req.body; // status = 'approved' or 'pending'
+
+  if (!localDB.schools || !localDB.schools[smissCode]) {
+    return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสำหรับรหัส SMISS โรงเรียนนี้" });
+  }
+
+  const school = localDB.schools[smissCode];
+  school.status = status;
+
+  // Automatically sync status of the associated admin teacher
+  if (school.adminTeacherId) {
+    const adminTeacher = Object.values(localDB.teachers).find(t => t.id === school.adminTeacherId);
+    if (adminTeacher) {
+      adminTeacher.status = status;
+    }
+  }
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: `เปลี่ยนสถานะเป็น '${status === 'approved' ? 'อนุมัติการทำงานจัดตั้งเสร็จสิ้น' : 'ระงับการทำงานจัดตั้ง'}' เรียบร้อย`,
+    school
+  });
+});
+
+// GET /api/school/teachers (Called by School Admin)
+app.get("/api/school/teachers", (req, res) => {
+  const { smissCode } = req.query;
+  if (!smissCode) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุรหัส SMISS ของโรงเรียน" });
+  }
+
+  const teachersList = Object.values(localDB.teachers).filter(
+    t => t.schoolSmissCode === smissCode
+  );
+
+  return res.json({
+    success: true,
+    teachers: teachersList
+  });
+});
+
+// POST /api/school/teachers/approve (Called by School Admin)
+app.post("/api/school/teachers/approve", (req, res) => {
+  const { teacherId, status, smissCode } = req.body;
+
+  const teacher = Object.values(localDB.teachers).find(t => t.id === teacherId);
+  if (!teacher) {
+    return res.status(404).json({ success: false, message: "ไม่พบคุณครูในระบบ" });
+  }
+
+  // Security check: teacher must belong to the school admin's school
+  if (teacher.schoolSmissCode !== smissCode) {
+    return res.status(403).json({ success: false, message: "ไม่มีสิทธิ์อนุมัติสิทธิ์ภายนอกโรงเรียนที่ดูแล" });
+  }
+
+  teacher.status = status;
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: `เปลี่ยนสถานะคุณครูเสร็จสิ้น`,
+    teacher
+  });
+});
+
+// POST /api/school/committee (Called by School Admin to configure evaluation committee)
+app.post("/api/school/committee", (req, res) => {
+  const { smissCode, directorName, paCommitteeMembers } = req.body;
+
+  if (!smissCode) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุรหัส SMISS ของโรงเรียน" });
+  }
+
+  if (!localDB.schools || !localDB.schools[smissCode]) {
+    return res.status(404).json({ success: false, message: "ไม่พบข้อมูลสำหรับรหัส SMISS โรงเรียนนี้" });
+  }
+
+  const school = localDB.schools[smissCode];
+  school.directorName = directorName || "";
+  school.paCommitteeMembers = paCommitteeMembers || [];
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "บันทึกรายชื่อคณะกรรมการประเมินและประธานประเมิน (ผู้อำนวยการโรงเรียน) เรียบร้อยแล้ว",
+    school
   });
 });
 
