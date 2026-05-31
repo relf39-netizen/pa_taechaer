@@ -6,7 +6,15 @@ import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState } from 
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
+// Load environment variables from standard and absolute paths to support IIS/Plesk
 dotenv.config();
+try {
+  dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+  dotenv.config({ path: path.resolve(__dirname, ".env") });
+  dotenv.config({ path: path.resolve(__dirname, "../.env") });
+} catch (e) {
+  console.warn("Dotenv custom path parsing warning:", e);
+}
 
 const app = express();
 const PORT = 3000;
@@ -276,6 +284,17 @@ function loadDatabase(): DBState {
 
 // Write database file
 function saveDatabase(state: DBState) {
+  // If the server should connect to MySQL, skip writing local JSON file to prevent EPERM errors on restricted hosting servers like IIS/Plesk.
+  if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME) {
+    // MySQL is the active source of truth. We only sync to MySQL if the connection is active.
+    if (mysqlPool) {
+      syncStateToMySQL(state).catch(err => {
+        console.error("Error in background MySQL sync:", err);
+      });
+    }
+    return;
+  }
+
   try {
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
   } catch (error) {
