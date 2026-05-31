@@ -43,6 +43,7 @@ async function runBuild() {
       },
       build: {
         outDir: "dist",
+        assetsDir: "app-assets",
         emptyOutDir: true,
       },
     });
