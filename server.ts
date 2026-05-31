@@ -57,7 +57,7 @@ function getWriteableDbPath(): string {
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const DB_FILE_PATH = getWriteableDbPath();
 
 app.use(express.json());
@@ -980,9 +980,17 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
-  });
+  const isPipe = typeof PORT === "string" && (PORT.startsWith("\\\\") || PORT.indexOf("\\pipe\\") !== -1);
+  if (isPipe) {
+    app.listen(PORT, () => {
+      console.log(`Server is running on IIS named pipe: ${PORT}`);
+    });
+  } else {
+    const numericPort = typeof PORT === "string" ? parseInt(PORT, 10) : PORT;
+    app.listen(numericPort, "0.0.0.0", () => {
+      console.log(`Server is running at http://localhost:${numericPort}`);
+    });
+  }
 }
 
 startServer();
