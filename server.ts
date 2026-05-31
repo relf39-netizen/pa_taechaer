@@ -3,6 +3,10 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState } from "./src/types";
+import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const PORT = 3000;
@@ -276,6 +280,262 @@ function saveDatabase(state: DBState) {
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
   } catch (error) {
     console.error("Error writing database file:", error);
+  }
+
+  // Backup sync to MySQL in background if connected
+  if (mysqlPool) {
+    syncStateToMySQL(state).catch(err => {
+      console.error("Error in background MySQL sync:", err);
+    });
+  }
+}
+
+// MySQL Connection Pool & State Managers
+let mysqlPool: mysql.Pool | null = null;
+
+const dbHostRaw = process.env.DB_HOST || "";
+// Strip port if included in the host name like "localhost:3306"
+const dbHost = dbHostRaw.split(":")[0];
+const dbPort = parseInt(process.env.DB_PORT || (dbHostRaw.split(":")[1] || "3306"), 10);
+const dbUser = process.env.DB_USER || "";
+const dbPassword = process.env.DB_PASSWORD || process.env.DB_PASS || "";
+const dbName = process.env.DB_NAME || "";
+
+async function initMySQL() {
+  if (!dbHost || !dbUser || !dbName) {
+    console.log("MySQL Database details not configure yet in env. Running in Local JSON file mode.");
+    return false;
+  }
+
+  try {
+    console.log(`Connecting to MySQL database at ${dbHost}:${dbPort} for db: ${dbName}...`);
+    mysqlPool = mysql.createPool({
+      host: dbHost,
+      port: dbPort,
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
+      charset: "utf8mb4",
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    });
+
+    // Test connection
+    const conn = await mysqlPool.getConnection();
+    console.log("Successfully connected to MySQL Database!");
+    conn.release();
+
+    // Setup SQL tables if they're missing
+    await createMySQLTables();
+
+    // Hydrate localDB memory
+    await loadDataFromMySQL();
+
+    return true;
+  } catch (error) {
+    console.error("Could not complete MySQL initialization. Falling back to local JSON database storage.", error);
+    mysqlPool = null;
+    return false;
+  }
+}
+
+async function createMySQLTables() {
+  if (!mysqlPool) return;
+
+  console.log("Verifying MySQL database tables existence...");
+
+  // 1. Teachers table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_teachers\` (
+      \`id\` VARCHAR(50) NOT NULL PRIMARY KEY,
+      \`email\` VARCHAR(100) NOT NULL UNIQUE,
+      \`name\` VARCHAR(100) NOT NULL,
+      \`position\` VARCHAR(100) NOT NULL,
+      \`school\` VARCHAR(100) NOT NULL,
+      \`affiliation\` VARCHAR(100) NOT NULL,
+      \`phone\` VARCHAR(20) DEFAULT NULL,
+      \`slug\` VARCHAR(50) NOT NULL UNIQUE,
+      \`academic_year\` VARCHAR(10) NOT NULL,
+      \`status\` VARCHAR(20) NOT NULL DEFAULT 'pending',
+      \`date_created\` VARCHAR(50) NOT NULL,
+      \`header_image\` LONGTEXT DEFAULT NULL,
+      \`avatar_image\` LONGTEXT DEFAULT NULL,
+      \`theme_color\` VARCHAR(30) DEFAULT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  // 2. PA Teacher Data table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_teacher_data\` (
+      \`teacher_id\` VARCHAR(50) NOT NULL PRIMARY KEY,
+      \`indicators_json\` LONGTEXT NOT NULL,
+      \`challenge_json\` LONGTEXT NOT NULL,
+      \`updated_at\` VARCHAR(50) NOT NULL,
+      FOREIGN KEY (\`teacher_id\`) REFERENCES \`pa_teachers\`(\`id\`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  // 3. Admin Config table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_admin_config\` (
+      \`username\` VARCHAR(50) NOT NULL PRIMARY KEY,
+      \`password_hash\` VARCHAR(255) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+}
+
+async function loadDataFromMySQL() {
+  if (!mysqlPool) return;
+
+  console.log("Hydrating application state from MySQL...");
+
+  // 1. Sync check admin credentials 
+  const [adminRows] = await mysqlPool.query<any[]>("SELECT * FROM \`pa_admin_config\`");
+  if (adminRows.length > 0) {
+    localDB.adminConfig = {
+      username: adminRows[0].username,
+      passwordHash: adminRows[0].password_hash,
+    };
+  } else {
+    await mysqlPool.query(
+      "INSERT INTO \`pa_admin_config\` (username, password_hash) VALUES (?, ?) ON DUPLICATE KEY UPDATE password_hash = ?",
+      [localDB.adminConfig.username, localDB.adminConfig.passwordHash, localDB.adminConfig.passwordHash]
+    );
+  }
+
+  // 2. Load teachers list
+  const [teacherRows] = await mysqlPool.query<any[]>("SELECT * FROM \`pa_teachers\`");
+  if (teacherRows.length > 0) {
+    const loadedTeachers: Record<string, Teacher> = {};
+    const loadedTeacherDataList: Record<string, TeacherData> = {};
+
+    for (const row of teacherRows) {
+      const teacher: Teacher = {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        position: row.position,
+        school: row.school,
+        affiliation: row.affiliation,
+        phone: row.phone || "",
+        slug: row.slug,
+        academicYear: row.academic_year,
+        status: row.status as 'pending' | 'approved',
+        dateCreated: row.date_created,
+        headerImage: row.header_image || undefined,
+        avatarImage: row.avatar_image || undefined,
+        themeColor: row.theme_color || undefined,
+      };
+      loadedTeachers[teacher.email] = teacher;
+
+      // Seed with default layouts
+      loadedTeacherDataList[teacher.id] = {
+        teacher: teacher,
+        indicators: createDefaultIndicators(),
+        challenge: createDefaultChallenge(),
+      };
+    }
+
+    // 3. Load indicators and challenges JSON chunks
+    const [dataRows] = await mysqlPool.query<any[]>("SELECT * FROM \`pa_teacher_data\`");
+    for (const dRow of dataRows) {
+      const tId = dRow.teacher_id;
+      if (loadedTeacherDataList[tId]) {
+        try {
+          const indicators = JSON.parse(dRow.indicators_json);
+          const challenge = JSON.parse(dRow.challenge_json);
+          loadedTeacherDataList[tId].indicators = indicators;
+          loadedTeacherDataList[tId].challenge = challenge;
+        } catch (parseError) {
+          console.error(`Skip JSON parse error for teacher ID ${tId} on MySQL load:`, parseError);
+        }
+      }
+    }
+
+    localDB.teachers = loadedTeachers;
+    localDB.teacherDataList = loadedTeacherDataList;
+    console.log(`Success: Loaded ${teacherRows.length} teachers and data portfolios from MySQL.`);
+  } else {
+    console.log("No teacher accounts found in MySQL. Initializing MySQL tables with the local demo state...");
+    await syncStateToMySQL(localDB);
+  }
+}
+
+async function syncStateToMySQL(state: DBState) {
+  if (!mysqlPool) return;
+
+  try {
+    // Sync admin config
+    await mysqlPool.query(
+      "INSERT INTO \`pa_admin_config\` (username, password_hash) VALUES (?, ?) ON DUPLICATE KEY UPDATE password_hash = ?",
+      [state.adminConfig.username, state.adminConfig.passwordHash, state.adminConfig.passwordHash]
+    );
+
+    // Sync deletion
+    const [existingTeachers] = await mysqlPool.query<any[]>("SELECT id FROM \`pa_teachers\`");
+    const currentIds = new Set(Object.values(state.teachers).map(t => t.id));
+
+    for (const ext of existingTeachers) {
+      if (!currentIds.has(ext.id)) {
+        await mysqlPool.query("DELETE FROM \`pa_teachers\` WHERE id = ?", [ext.id]);
+        console.log(`Synced deleted teacher ID ${ext.id} to MySQL.`);
+      }
+    }
+
+    // Insert or update
+    for (const email of Object.keys(state.teachers)) {
+      const t = state.teachers[email];
+      await mysqlPool.query(
+        `INSERT INTO \`pa_teachers\` (
+          id, email, name, position, school, affiliation, phone, slug, academic_year, status, date_created, header_image, avatar_image, theme_color
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          position = VALUES(position),
+          school = VALUES(school),
+          affiliation = VALUES(affiliation),
+          phone = VALUES(phone),
+          slug = VALUES(slug),
+          academic_year = VALUES(academic_year),
+          status = VALUES(status),
+          header_image = VALUES(header_image),
+          avatar_image = VALUES(avatar_image),
+          theme_color = VALUES(theme_color)`,
+        [
+          t.id,
+          t.email,
+          t.name,
+          t.position,
+          t.school,
+          t.affiliation,
+          t.phone || "",
+          t.slug,
+          t.academicYear,
+          t.status,
+          t.dateCreated,
+          t.headerImage || null,
+          t.avatarImage || null,
+          t.themeColor || null
+        ]
+      );
+
+      const tData = state.teacherDataList[t.id];
+      if (tData) {
+        await mysqlPool.query(
+          `INSERT INTO \`pa_teacher_data\` (
+            teacher_id, indicators_json, challenge_json, updated_at
+          ) VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            indicators_json = VALUES(indicators_json),
+            challenge_json = VALUES(challenge_json),
+            updated_at = VALUES(updated_at)`,
+          [t.id, JSON.stringify(tData.indicators), JSON.stringify(tData.challenge), new Date().toISOString()]
+        );
+      }
+    }
+  } catch (syncErr) {
+    console.error("Background syncStateToMySQL execution error:", syncErr);
   }
 }
 
@@ -644,6 +904,9 @@ pause
 
 // Serve static or client files via Vite
 async function startServer() {
+  // Let's connect to MySQL if environment keys are in place
+  await initMySQL();
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
