@@ -19,8 +19,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPosition, setRegPosition] = useState("ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)");
-  const [regSchool, setRegSchool] = useState("");
-  const [regAffiliation, setRegAffiliation] = useState("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษากรุงเทพมหานคร เขต 1");
+  const [regSchool, setRegSchool] = useState("โรงเรียนบ้านหนองหว้า");
+  const [regAffiliation, setRegAffiliation] = useState("สำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3");
   const [regPhone, setRegPhone] = useState("");
   const [regSlug, setRegSlug] = useState("");
   const [regAcademicYear, setRegAcademicYear] = useState("2569");
