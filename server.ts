@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { createServer as createViteServer } from "vite";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState } from "./src/types";
 import mysql from "mysql2/promise";
@@ -16,9 +17,48 @@ try {
   console.warn("Dotenv custom path parsing warning:", e);
 }
 
+// Determine a writeable path for teachers_db.json on restrictive servers like IIS/Plesk
+function getWriteableDbPath(): string {
+  const defaultPath = path.join(process.cwd(), "teachers_db.json");
+  
+  // Try writing to standard cwd path first
+  try {
+    fs.writeFileSync(defaultPath + ".test", "test", "utf-8");
+    fs.unlinkSync(defaultPath + ".test");
+    return defaultPath;
+  } catch (e) {
+    console.warn("process.cwd() is not writeable (EPERM/EACCES), trying alternative paths...");
+  }
+  
+  // Try Plesk/IIS user's typical writeable directories like dist, parent tmp folder or temp directory
+  const altPaths = [
+    path.join(process.cwd(), "dist", "teachers_db.json"),
+    path.resolve(process.cwd(), "..", "tmp", "teachers_db.json"),
+    path.join(os.tmpdir(), "teachers_db.json")
+  ];
+  
+  for (const altPath of altPaths) {
+    try {
+      const dir = path.dirname(altPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(altPath + ".test", "test", "utf-8");
+      fs.unlinkSync(altPath + ".test");
+      console.log(`Using writable database fallback path: ${altPath}`);
+      return altPath;
+    } catch (err) {
+      console.warn(`Alternative path ${altPath} is not writable:`, (err as Error).message);
+    }
+  }
+  
+  console.error("CRITICAL WARNING: No persistent file paths are writable. Operating in IN-MEMORY database fallback mode.");
+  return defaultPath;
+}
+
 const app = express();
 const PORT = 3000;
-const DB_FILE_PATH = path.join(process.cwd(), "teachers_db.json");
+const DB_FILE_PATH = getWriteableDbPath();
 
 app.use(express.json());
 
