@@ -464,9 +464,18 @@ async function createMySQLTables() {
       \`admin_teacher_id\` VARCHAR(50) DEFAULT NULL,
       \`director_name\` VARCHAR(100) DEFAULT NULL,
       \`pa_committee_members\` TEXT DEFAULT NULL,
-      \`date_created\` VARCHAR(50) NOT NULL
+      \`date_created\` VARCHAR(50) NOT NULL,
+      \`drive_folder_id\` VARCHAR(150) DEFAULT NULL,
+      \`gas_web_url\` TEXT DEFAULT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  try {
+    await mysqlPool.query("ALTER TABLE `pa_schools` ADD COLUMN `drive_folder_id` VARCHAR(150) DEFAULT NULL");
+  } catch (e) {}
+  try {
+    await mysqlPool.query("ALTER TABLE `pa_schools` ADD COLUMN `gas_web_url` TEXT DEFAULT NULL");
+  } catch (e) {}
 
   // 2. PA Teacher Data table
   await mysqlPool.query(`
@@ -580,7 +589,9 @@ async function loadDataFromMySQL() {
           adminTeacherId: sRow.admin_teacher_id || undefined,
           directorName: sRow.director_name || undefined,
           paCommitteeMembers: members,
-          dateCreated: sRow.date_created
+          dateCreated: sRow.date_created,
+          driveFolderId: sRow.drive_folder_id || undefined,
+          gasWebUrl: sRow.gas_web_url || undefined
         };
       }
       localDB.schools = loadedSchools;
@@ -689,15 +700,17 @@ async function syncStateToMySQL(state: DBState) {
         const s = state.schools[smissCode];
         await mysqlPool.query(
           `INSERT INTO \`pa_schools\` (
-            smiss_code, name, affiliation, status, admin_teacher_id, director_name, pa_committee_members, date_created
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            smiss_code, name, affiliation, status, admin_teacher_id, director_name, pa_committee_members, date_created, drive_folder_id, gas_web_url
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             name = VALUES(name),
             affiliation = VALUES(affiliation),
             status = VALUES(status),
             admin_teacher_id = VALUES(admin_teacher_id),
             director_name = VALUES(director_name),
-            pa_committee_members = VALUES(pa_committee_members)`,
+            pa_committee_members = VALUES(pa_committee_members),
+            drive_folder_id = VALUES(drive_folder_id),
+            gas_web_url = VALUES(gas_web_url)`,
           [
             s.smissCode,
             s.name,
@@ -706,7 +719,9 @@ async function syncStateToMySQL(state: DBState) {
             s.adminTeacherId || null,
             s.directorName || null,
             s.paCommitteeMembers ? JSON.stringify(s.paCommitteeMembers) : null,
-            s.dateCreated
+            s.dateCreated,
+            s.driveFolderId || null,
+            s.gasWebUrl || null
           ]
         );
       }
@@ -1264,9 +1279,9 @@ app.post("/api/school/teachers/approve", (req, res) => {
   });
 });
 
-// POST /api/school/committee (Called by School Admin to configure evaluation committee)
+// POST /api/school/committee (Called by School Admin to configure evaluation committee and Google Drive connection)
 app.post("/api/school/committee", (req, res) => {
-  const { smissCode, directorName, paCommitteeMembers } = req.body;
+  const { smissCode, directorName, paCommitteeMembers, driveFolderId, gasWebUrl } = req.body;
 
   if (!smissCode) {
     return res.status(400).json({ success: false, message: "กรุณาระบุรหัส SMISS ของโรงเรียน" });
@@ -1279,12 +1294,19 @@ app.post("/api/school/committee", (req, res) => {
   const school = localDB.schools[smissCode];
   school.directorName = directorName || "";
   school.paCommitteeMembers = paCommitteeMembers || [];
+  
+  if (driveFolderId !== undefined) {
+    school.driveFolderId = driveFolderId;
+  }
+  if (gasWebUrl !== undefined) {
+    school.gasWebUrl = gasWebUrl;
+  }
 
   saveDatabase(localDB);
 
   return res.json({
     success: true,
-    message: "บันทึกรายชื่อคณะกรรมการประเมินและประธานประเมิน (ผู้อำนวยการโรงเรียน) เรียบร้อยแล้ว",
+    message: "บันทึกตั้งค่าโครงสร้างโรงเรียนและตั้งค่าระบบ Google Drive สำเร็จแล้ว",
     school
   });
 });

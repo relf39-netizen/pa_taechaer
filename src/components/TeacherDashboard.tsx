@@ -8,6 +8,84 @@ import {
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 import PublicProfile from "./PublicProfile";
 
+const GOOGLE_APPS_SCRIPT_TEMPLATE = `function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Google Apps Script connected!" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var requestData = JSON.parse(e.postData.contents);
+    var action = requestData.action;
+    
+    // 1. Upload evidence image
+    if (action === "uploadImage") {
+      var folderId = requestData.folderId;
+      var teacherId = requestData.teacherId;
+      var fileName = requestData.fileName || ("img_" + Date.now());
+      var fileBytes = Utilities.base64Decode(requestData.imageBase64.split(",")[1]);
+      var mimeType = requestData.mimeType || "image/jpeg";
+      
+      var parentFolder = DriveApp.getFolderById(folderId);
+      var subFolders = parentFolder.getFoldersByName(teacherId);
+      var teacherFolder;
+      if (subFolders.hasNext()) {
+        teacherFolder = subFolders.next();
+      } else {
+        teacherFolder = parentFolder.createFolder(teacherId);
+      }
+      
+      var blob = Utilities.newBlob(fileBytes, mimeType, fileName);
+      var file = teacherFolder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      
+      var directImgUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=s1600";
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        url: directImgUrl,
+        driveUrl: file.getUrl(),
+        fileId: file.getId()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 2. Save teacher data JSON
+    if (action === "saveTeacherData") {
+      var folderId = requestData.folderId;
+      var teacherId = requestData.teacherId;
+      var portfolioContent = JSON.stringify(requestData.data, null, 2);
+      
+      var parentFolder = DriveApp.getFolderById(folderId);
+      var subFolders = parentFolder.getFoldersByName(teacherId);
+      var teacherFolder;
+      if (subFolders.hasNext()) {
+        teacherFolder = subFolders.next();
+      } else {
+        teacherFolder = parentFolder.createFolder(teacherId);
+      }
+      
+      var files = teacherFolder.getFilesByName("pa_portfolio_backup.json");
+      if (files.hasNext()) {
+        var file = files.next();
+        file.setContent(portfolioContent);
+      } else {
+        teacherFolder.createFile("pa_portfolio_backup.json", portfolioContent, "application/json");
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Teacher portfolio backed up successfully!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Unknown action" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
 interface TeacherDashboardProps {
   initialData: TeacherData;
   onLogout: () => void;
@@ -34,6 +112,10 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   // New Link temporary input state
   const [newLinkName, setNewLinkName] = useState("");
   const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [evidenceType, setEvidenceType] = useState<"link" | "image">("link");
+  const [uploadImageBase64, setUploadImageBase64] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [schoolDriveConfig, setSchoolDriveConfig] = useState<{ driveFolderId: string; gasWebUrl: string } | null>(null);
 
   // Part 2 Challenge state
   const [chalTitle, setChalTitle] = useState(data.challenge?.title || "");
@@ -48,6 +130,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [directorName, setDirectorName] = useState("");
   const [committeeMembers, setCommitteeMembers] = useState<{ id: string; name: string; title: string }[]>([]);
   const [schoolTeachers, setSchoolTeachers] = useState<Teacher[]>([]);
+  const [driveFolderId, setDriveFolderId] = useState("");
+  const [gasWebUrl, setGasWebUrl] = useState("");
   const [isSchoolLoading, setIsSchoolLoading] = useState(false);
   const [newCommName, setNewCommName] = useState("");
   const [newCommTitle, setNewCommTitle] = useState("ผู้ทรงคุณวุฒิ");
@@ -75,6 +159,12 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         if (mySchool) {
           setDirectorName(mySchool.directorName || "");
           setCommitteeMembers(mySchool.paCommitteeMembers || []);
+          setDriveFolderId(mySchool.driveFolderId || "");
+          setGasWebUrl(mySchool.gasWebUrl || "");
+          setSchoolDriveConfig({
+            driveFolderId: mySchool.driveFolderId || "",
+            gasWebUrl: mySchool.gasWebUrl || ""
+          });
         }
       }
 
@@ -96,6 +186,31 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     }
   }, [activeMenu]);
 
+  // Load school drive config on mount for all roles
+  React.useEffect(() => {
+    const initSchoolDriveConfig = async () => {
+      if (!data.teacher.schoolSmissCode) return;
+      try {
+        const sRes = await fetch("/api/schools");
+        const sData = await sRes.json();
+        if (sData.success) {
+          const mySchool = sData.schools?.find((s: any) => s.smissCode === data.teacher.schoolSmissCode);
+          if (mySchool) {
+            setSchoolDriveConfig({
+              driveFolderId: mySchool.driveFolderId || "",
+              gasWebUrl: mySchool.gasWebUrl || ""
+            });
+            setDriveFolderId(mySchool.driveFolderId || "");
+            setGasWebUrl(mySchool.gasWebUrl || "");
+          }
+        }
+      } catch (err) {
+        console.error("Error picking up school drive setup:", err);
+      }
+    };
+    initSchoolDriveConfig();
+  }, [data.teacher.schoolSmissCode]);
+
   // Save Committee & Director
   const handleSaveCommittee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +222,9 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         body: JSON.stringify({
           smissCode: data.teacher.schoolSmissCode,
           directorName,
-          paCommitteeMembers: committeeMembers
+          paCommitteeMembers: committeeMembers,
+          driveFolderId,
+          gasWebUrl
         })
       });
       const resData = await res.json();
@@ -188,11 +305,31 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       const responseData = await res.json();
       if (!res.ok) throw new Error(responseData.message || "อัปเดตล้มเหลว");
       
-      setData(prev => ({
-        ...prev,
-        teacher: responseData.teacher
-      }));
-      triggerToast("success", "บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว");
+      setData(prev => {
+        const updated = {
+          ...prev,
+          teacher: responseData.teacher
+        };
+
+        // Auto Sync back up to Google Drive in background if configured!
+        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
+          fetch(schoolDriveConfig.gasWebUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "saveTeacherData",
+              folderId: schoolDriveConfig.driveFolderId,
+              teacherId: data.teacher.id,
+              teacherName: responseData.teacher.name,
+              data: updated
+            })
+          }).then(() => console.log("Google Drive profile background backup completed!"))
+            .catch(e => console.warn("Google Drive profile background backup failed:", e));
+        }
+
+        return updated;
+      });
+      triggerToast("success", "บันทึกข้อมูลส่วนตัวและสำรองข้อมูลลง Google Drive เรียบร้อยแล้ว");
     } catch (err: any) {
       triggerToast("error", err.message);
     } finally {
@@ -211,20 +348,134 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setNewLinkUrl("");
   };
 
-  // 2. Add Indicator Link
-  const handleAddIndLink = () => {
-    if (!newLinkName.trim() || !newLinkUrl.trim()) {
-      triggerToast("error", "กรุณาระบุชื่อหลักฐาน และที่อยู่ลิงก์ให้ถูกต้อง");
-      return;
-    }
-    const newLink: EvidenceLink = {
-      id: "ev-" + Date.now(),
-      name: newLinkName.trim(),
-      url: newLinkUrl.trim()
+  // Compress and convert image to lightweight Base64
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 1000; // Keep width compact
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75); // compress to standard jpeg at 75% quality
+          setUploadImageBase64(compressedBase64);
+        }
+      };
+      img.src = event.target?.result as string;
     };
-    setIndLinks(prev => [...prev, newLink]);
-    setNewLinkName("");
-    setNewLinkUrl("");
+    reader.readAsDataURL(file);
+  };
+
+  // 2. Add Indicator Link
+  const handleAddIndLink = async () => {
+    if (evidenceType === "link") {
+      if (!newLinkName.trim() || !newLinkUrl.trim()) {
+        triggerToast("error", "กรุณาระบุชื่อหลักฐาน และที่อยู่ลิงก์ให้ถูกต้อง");
+        return;
+      }
+      const newLink: EvidenceLink = {
+        id: "ev-" + Date.now(),
+        name: newLinkName.trim(),
+        url: newLinkUrl.trim(),
+        type: "link"
+      };
+      setIndLinks(prev => [...prev, newLink]);
+      setNewLinkName("");
+      setNewLinkUrl("");
+    } else {
+      // It is an image
+      if (!newLinkName.trim()) {
+        triggerToast("error", "กรุณากรอกรายละเอียดกิจกรรมสำหรับแสดงผลด้านบนรูปภาพ");
+        return;
+      }
+      if (!uploadImageBase64) {
+        triggerToast("error", "กรุณาเลือกไฟล์รูปภาพที่ต้องการอัปโหลด");
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        let finalImageUrl = uploadImageBase64;
+        
+        // If Google Apps Script Web App is connected, upload it to Google Drive!
+        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
+          const payload = {
+            action: "uploadImage",
+            folderId: schoolDriveConfig.driveFolderId,
+            teacherId: data.teacher.id,
+            fileName: "img_" + Date.now() + ".jpg",
+            imageBase64: uploadImageBase64,
+            mimeType: "image/jpeg"
+          };
+
+          const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          
+          const uploadData = await uploadRes.json();
+          if (uploadData.success && uploadData.url) {
+            finalImageUrl = uploadData.url;
+            triggerToast("success", "อัปโหลดภาพกิจกรรมไปยัง Google Drive ของโรงเรียนแล้ว");
+          } else {
+            console.warn("GAS Server upload error:", uploadData.error || "unknown response");
+            triggerToast("error", "อัปลิงก์ Drive ล้มเหลว กำลังใช้การเก็บบันทึกบนเซิร์ฟเวอร์สำรองชั่วคราว...");
+          }
+        } else {
+          triggerToast("success", "เพิ่มภาพถ่ายกิจกรรมลงแฟ้มข้อมูลของคุณเรียบร้อยแล้ว (แนะนำตั้งค่า Google Drive)");
+        }
+
+        const newImgLink: EvidenceLink = {
+          id: "ev-img-" + Date.now(),
+          name: newLinkName.trim(), // คำอธิบายกิจกรรมอยู่ตำแหน่งด้านบนภาพ
+          url: finalImageUrl,
+          type: "image"
+        };
+        
+        setIndLinks(prev => [...prev, newImgLink]);
+        setNewLinkName("");
+        setUploadImageBase64("");
+      } catch (err: any) {
+        console.error("Direct image save error:", err);
+        const newImgLink: EvidenceLink = {
+          id: "ev-img-" + Date.now(),
+          name: newLinkName.trim(),
+          url: uploadImageBase64,
+          type: "image"
+        };
+        setIndLinks(prev => [...prev, newImgLink]);
+        setNewLinkName("");
+        setUploadImageBase64("");
+        triggerToast("success", "จัดเก็บภาพถ่ายในแฟ้มของท่านเรียบร้อยเเล้ว");
+      } finally {
+        setIsUploading(false);
+      }
+    }
   };
 
   // Remove Indicator Link
@@ -252,12 +503,32 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       setData(prev => {
         const copy = { ...prev.indicators };
         copy[selectedIndId] = responseData.indicator;
+        
+        // Auto Sync back up to Google Drive in background if configured!
+        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
+          fetch(schoolDriveConfig.gasWebUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "saveTeacherData",
+              folderId: schoolDriveConfig.driveFolderId,
+              teacherId: data.teacher.id,
+              teacherName: data.teacher.name,
+              data: {
+                ...prev,
+                indicators: copy
+              }
+            })
+          }).then(() => console.log("Google Drive background backup completed!"))
+            .catch(e => console.warn("Google Drive background backup failed:", e));
+        }
+
         return {
           ...prev,
           indicators: copy
         };
       });
-      triggerToast("success", `บันทึกข้อมูลตัวชี้วัดที่ ${selectedIndId} สำเร็จ`);
+      triggerToast("success", `บันทึกข้อมูลตัวชี้วัดที่ ${selectedIndId} และสำรองข้อมูลลง Google Drive สำเร็จ`);
     } catch (err: any) {
       triggerToast("error", err.message);
     } finally {
@@ -307,11 +578,31 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       const responseData = await res.json();
       if (!res.ok) throw new Error(responseData.message || "บันทึกข้อมูลประเด็นท้าทายล้มเหลว");
 
-      setData(prev => ({
-        ...prev,
-        challenge: responseData.challenge
-      }));
-      triggerToast("success", "บันทึกประเด็นท้าทาย (ส่วนที่ 2) เรียบร้อยแล้ว");
+      setData(prev => {
+        const updated = {
+          ...prev,
+          challenge: responseData.challenge
+        };
+
+        // Auto Sync back up to Google Drive in background if configured!
+        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
+          fetch(schoolDriveConfig.gasWebUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "saveTeacherData",
+              folderId: schoolDriveConfig.driveFolderId,
+              teacherId: data.teacher.id,
+              teacherName: data.teacher.name,
+              data: updated
+            })
+          }).then(() => console.log("Google Drive challenge background backup completed!"))
+            .catch(e => console.warn("Google Drive challenge background backup failed:", e));
+        }
+
+        return updated;
+      });
+      triggerToast("success", "บันทึกประเด็นท้าทาย (ส่วนที่ 2) และสำรองข้อมูลลง Google Drive เรียบร้อยแล้ว");
     } catch (err: any) {
       triggerToast("error", err.message);
     } finally {
@@ -476,7 +767,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
             <div className="bg-white rounded-lg shadow-sm border border-[#e2e8f0] overflow-hidden flex flex-col md:flex-row flex-1 min-h-[500px]">
               
               {/* Left Side Indicators Slider */}
-              <div className="w-full md:w-64 bg-slate-50 border-r border-[#e2e8f0] p-2.5 space-y-1 overflow-y-auto max-h-[600px] md:max-h-none">
+              <div className="w-full md:w-64 bg-slate-50 border-r border-[#e2e8f0] p-2.5 space-y-1 overflow-y-auto max-h-[600px] md:max-h-none shrink-0">
                 <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   ด้านการจัดการเรียนรู้ (1.1 - 1.8)
                 </div>
@@ -490,7 +781,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                         : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <span>{id} {data.indicators[id]?.title.substring(0, 16)}...</span>
+                    <span>{id} {data.indicators[id]?.title?.substring(0, 16)}...</span>
                     {data.indicators[id]?.status === "completed" && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 ml-1" />}
                     {data.indicators[id]?.status === "in_progress" && <Clock className="w-3.5 h-3.5 text-yellow-600 ml-1" />}
                   </button>
@@ -577,7 +868,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                         type="button"
                         key={item.key}
                         onClick={() => setIndStatus(item.key as any)}
-                        className={`px-4 py-2 border text-xs font-semibold rounded-md transition-all border-solid cursor-pointer ${
+                        className={`px-4 py-2 border text-xs font-semibold rounded-md transition-all border-solid cursor-[#1e3a8a] ${
                           indStatus === item.key 
                             ? "bg-[#1e3a8a] text-white border-[#1e3a8a]" 
                             : item.color
@@ -590,86 +881,253 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                 </div>
 
                 {/* Evidence Links addition and List view */}
-                <div className="space-y-3.5">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    ลิงก์แหล่งที่เก็บหลักฐานและร่องรอยอ้างอิง (Evidence Links)
+                <div className="space-y-4">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    📁 ลิงก์อ้างอิงและรูปภาพหลักฐานยืนยันความสำเร็จ (Evidence Repository)
                   </label>
                   
-                  {/* Link display lists */}
+                  {/* Category Filter and Display Lists */}
                   {indLinks.length === 0 ? (
-                    <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-md border border-dashed border-[#e2e8f0]">
-                      ยังไม่มีการบันทึกเอกสารสรุปผลงาน/ลิงก์หลักฐานอ้างอิงของคุณครู
+                    <div className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-xl border border-dashed border-[#e2e8f0] text-center">
+                      ยังไม่มีการแนบเอกสารสรุปผลงานหรือรูปภาพกิจกรรมอ้างอิงสำหรับตัวชี้วัดนี้
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {indLinks.map((link) => (
-                        <div 
-                          key={link.id} 
-                          className="flex items-center justify-between p-2.5 bg-slate-50 rounded-md border border-[#e2e8f0] text-xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-slate-450" />
-                            <span className="font-semibold text-slate-700">{link.name}</span>
-                            <span className="text-slate-400 text-[10px] truncate max-w-xs">&bull; {link.url}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <a 
-                              href={link.url} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="text-slate-500 hover:text-slate-900 inline-block p-1"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveIndLink(link.id)}
-                              className="text-rose-550 hover:text-rose-650 p-1 border-none bg-transparent cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                    <div className="space-y-4">
+                      {/* 1. DOCUMENT LINKS */}
+                      {indLinks.filter(l => l.type !== "image" && !l.url.startsWith("data:image") && !l.url.includes("lh3.googleusercontent.com/d/")).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-[10px] font-bold text-slate-450 uppercase tracking-widest">
+                            📂 ไฟล์เอกสารและลิงก์สรุปทั่วไป
+                          </h5>
+                          <div className="space-y-1.5">
+                            {indLinks.filter(l => l.type !== "image" && !l.url.startsWith("data:image") && !l.url.includes("lh3.googleusercontent.com/d/")).map((link) => (
+                              <div 
+                                key={link.id} 
+                                className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs"
+                              >
+                                <div className="flex items-center gap-2 max-w-[80%]">
+                                  <FileText className="w-4 h-4 text-slate-500" />
+                                  <span className="font-semibold text-slate-700 truncate">{link.name}</span>
+                                  <span className="text-slate-400 text-[10px] truncate">&bull; {link.url}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <a 
+                                    href={link.url} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-slate-500 hover:text-slate-900 inline-block p-1"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveIndLink(link.id)}
+                                    className="text-rose-550 hover:text-rose-650 p-1 border-none bg-transparent cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
+                      )}
+
+                      {/* 2. ACTIVITY IMAGES gallery (2-Columns Layout) */}
+                      {indLinks.filter(l => l.type === "image" || l.url.startsWith("data:image") || l.url.includes("lh3.googleusercontent.com/d/")).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-[10px] font-bold text-slate-450 uppercase tracking-widest">
+                            🖼️ ภาพเกียรติบัตรและภาพกิจกรรมสะสมผลงาน (แสดงสองคอลัมน์ แนวนอน)
+                          </h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {indLinks.filter(l => l.type === "image" || l.url.startsWith("data:image") || l.url.includes("lh3.googleusercontent.com/d/")).map((link) => (
+                              <div 
+                                key={link.id}
+                                className="bg-slate-50 p-4.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between group"
+                              >
+                                <div>
+                                  {/* Activity Description: SHOWN ON TOP */}
+                                  <div className="text-xs text-slate-800 font-medium leading-relaxed mb-3 font-sans border-b border-dashed border-slate-200 pb-2 flex justify-between items-start gap-2">
+                                    <span className="line-clamp-3">{link.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveIndLink(link.id)}
+                                      className="text-rose-550 hover:text-rose-650 p-1 border-none bg-transparent cursor-pointer shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {/* Horizontal Image: SHOWN BELOW */}
+                                  <div className="relative overflow-hidden rounded-xl border border-slate-200 aspect-[16/9] w-full bg-slate-900">
+                                    <img
+                                      src={link.url}
+                                      alt={link.name}
+                                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <a
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="absolute right-2.5 bottom-2.5 p-2 bg-slate-900/80 hover:bg-slate-950 text-white rounded-full shadow transition-all scale-90 group-hover:scale-100"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Add form */}
-                  <div className="bg-slate-50 p-4 rounded-lg border border-[#e2e8f0] grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-                    <div className="md:col-span-4">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        ชื่อหลักฐานอ้างอิง
-                      </label>
-                      <input
-                        type="text"
-                        value={newLinkName}
-                        onChange={(e) => setNewLinkName(e.target.value)}
-                        placeholder="เช่น แผนการจัดการเรียนรู้/ผลงานนักเรียน"
-                        className="block w-full px-2.5 py-1.5 border border-slate-250 bg-white rounded-lg text-xs"
-                      />
-                    </div>
-                    <div className="md:col-span-6">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        ที่อยู่ลิงก์หลักฐาน (Google Drive, OneDrive, etc.)
-                      </label>
-                      <input
-                        type="text"
-                        value={newLinkUrl}
-                        onChange={(e) => setNewLinkUrl(e.target.value)}
-                        placeholder="https://drive.google.com/..."
-                        className="block w-full px-2.5 py-1.5 border border-slate-250 bg-white rounded-lg text-xs"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
+                  {/* Add form selection */}
+                  <div className="border-t border-slate-200/60 pt-4.5">
+                    <div className="flex gap-2.5 mb-3">
                       <button
                         type="button"
-                        onClick={handleAddIndLink}
-                        className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold border-none cursor-pointer"
+                        onClick={() => {
+                          setEvidenceType("link");
+                          setNewLinkName("");
+                        }}
+                        className={`flex-1 py-2 font-bold rounded-xl text-xs cursor-pointer transition-all ${
+                          evidenceType === "link"
+                            ? "bg-slate-800 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none"
+                        }`}
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        เพิ่มลิงก์
+                        📂 เพิ่มเป็นลิงก์เอกสารอ้างอิงทั่วไป
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEvidenceType("image");
+                          setNewLinkName("");
+                        }}
+                        className={`flex-1 py-2 font-bold rounded-xl text-xs cursor-pointer transition-all ${
+                          evidenceType === "image"
+                            ? "bg-slate-800 text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none"
+                        }`}
+                      >
+                        🖼️ อัปโหลดภาพกิจกรรม/เกียรติบัตร (แสดงแนวนอน)
                       </button>
                     </div>
+
+                    {/* RENDER FORM DYNAMICALLY */}
+                    {evidenceType === "link" ? (
+                      <div className="bg-slate-50 p-4.5 rounded-xl border border-[#e2e8f0] grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
+                        <div className="md:col-span-4">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                            ชื่อไฟล์/คำอธิบายประกอบหลักฐาน
+                          </label>
+                          <input
+                            type="text"
+                            value={newLinkName}
+                            onChange={(e) => setNewLinkName(e.target.value)}
+                            placeholder="เช่น แผนการจัดการเรียนรู้, คำขอบคุณคณะกรรมการ"
+                            className="block w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-xs outline-none focus:border-amber-400 font-sans"
+                          />
+                        </div>
+                        <div className="md:col-span-6">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                            ที่อยู่ลิงก์หลักฐานอ้างอิง (Google Drive, OneDrive, etc.)
+                          </label>
+                          <input
+                            type="text"
+                            value={newLinkUrl}
+                            onChange={(e) => setNewLinkUrl(e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                            className="block w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-xs outline-none focus:border-amber-400 font-sans"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <button
+                            type="button"
+                            onClick={handleAddIndLink}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold border-none cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            เพิ่มลิงก์
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 p-4.5 rounded-xl border border-[#e2e8f0] space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                          <div className="md:col-span-7">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                              ✍️ รายละเอียดและคำอธิบายของกิจกรรม (จะถูกนำไปวางตำแหน่ง "ด้านบนสุดของรูปภาพ")
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={newLinkName}
+                              onChange={(e) => setNewLinkName(e.target.value)}
+                              placeholder="ตัวอย่าง: กิจกรรมการจัดสอนวิชาวิทยาศาสตร์ เรื่องคลื่นแรงดันสูง โดยให้นักเรียนลงมือปฏิบัติกิจกรรมกลุ่มด้วยความพร้อมเพรียง เมื่อวันที่ 16 มกราคม 2569 ณ ห้องวิจัยวิทยาศาสตร์สังกัดโรงเรียน"
+                              className="block w-full px-3 py-2 border border-slate-205 bg-white rounded-xl text-xs leading-relaxed outline-none focus:border-amber-400 font-sans"
+                            />
+                          </div>
+
+                          <div className="md:col-span-5 flex flex-col justify-end">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                              📸 เลือกรูปภาพประกอบ (ไฟล์ชนิด PNG, JPG, JPEG)
+                            </label>
+                            <div className="relative border border-dashed border-slate-300 hover:border-amber-400 rounded-xl bg-white p-3 text-center cursor-pointer flex flex-col justify-center items-center h-24">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageFileChange}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              />
+                              <p className="text-[10px] font-semibold text-slate-650">📥 คลิกเลือกหรือวางไฟล์รูปถ่ายกิจกรรมตรงนี้</p>
+                              {uploadImageBase64 ? (
+                                <p className="text-[9px] text-emerald-600 font-semibold mt-1">✓ เลือกไฟล์รูปถ่ายเรียบร้อยแล้ว!</p>
+                              ) : (
+                                <p className="text-[8px] text-slate-400 mt-1 font-sans">คำแนะนำ: แนะนำให้ใช้ไฟล์สัดส่วนแนวนอน</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Image Preview Box */}
+                        {uploadImageBase64 && (
+                          <div className="border border-slate-200 bg-slate-900 rounded-xl overflow-hidden aspect-[16/9] max-w-sm mx-auto relative group">
+                            <img
+                              src={uploadImageBase64}
+                              alt="preview"
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] text-white font-bold bg-slate-900/80 px-3 py-1 rounded">ภาพถ่ายสะสมผลงาน (พรีวิว)</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            disabled={isUploading}
+                            onClick={handleAddIndLink}
+                            className="flex items-center justify-center gap-1.5 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold border-none cursor-pointer"
+                          >
+                            {isUploading ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>กำลังจัดส่งภาพขึ้นระบบ...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4" />
+                                <span>อัปโหลดและเพิ่มลงแกลเลอรีภาพแนวนอน</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -679,7 +1137,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                     type="button"
                     onClick={handleSaveIndicator}
                     disabled={isSaving}
-                    className="flex items-center gap-1.5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold border-none cursor-pointer shadow-sm select-all"
+                    className="flex items-center gap-1.5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold border-none cursor-pointer shadow-sm disabled:opacity-50"
                   >
                     <Save className="w-4 h-4" />
                     {isSaving ? "กำลังบันทึก..." : "บันทึกตัวชี้วัดนี้"}
@@ -1142,14 +1600,93 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 flex justify-end">
+                        {/* Google Drive Configuration Section */}
+                        <div className="border-t border-slate-100 my-5 pt-4">
+                          <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 mb-1.5">
+                            ☁️ ตั้งค่าการเก็บบันทึกข้อมูล & รูปภาพลง Google Drive
+                          </h4>
+                          <p className="text-[10px] text-slate-500 mb-3.5 leading-relaxed">
+                            กำหนดให้ระบบจัดส่งและบันทึกประวัติสะสมงาน รูปภาพเกียรติบัตร และภาพกิจกรรมของคุณครูแต่ละโรงเรียนไว้ที่ Google Drive โดยตรง ผ่านบริการ Google Apps Script
+                          </p>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                                Google Drive Folder ID (รหัสโฟลเดอร์สำหรับเก็บข้อมูลคุณครู)
+                              </label>
+                              <input
+                                type="text"
+                                value={driveFolderId}
+                                onChange={(e) => setDriveFolderId(e.target.value)}
+                                placeholder="เช่น 1A2b3C4d5E6F7G8H9I0J-xyz"
+                                className="block w-full px-3 py-2 border border-slate-205 rounded-xl text-xs font-sans bg-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all"
+                              />
+                              <p className="text-[9px] text-slate-400 mt-1 font-sans">
+                                * สร้างโฟลเดอร์แม่บน Google Drive ของท่าน จากนั้นมองหาและคัดลอกส่วนรหัสยาวๆ ท้าย URL โฟลเดอร์มาวาง
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                                Google Apps Script Web App URL (ลิงก์เผยแพร่เว็บแอปพลิเคชัน)
+                              </label>
+                              <input
+                                type="url"
+                                value={gasWebUrl}
+                                onChange={(e) => setGasWebUrl(e.target.value)}
+                                placeholder="https://script.google.com/macros/s/.../exec"
+                                className="block w-full px-3 py-2 border border-slate-205 rounded-xl text-xs font-sans bg-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Google Apps Script integration details */}
+                            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                              <details className="group">
+                                <summary className="flex items-center justify-between text-[11px] font-bold text-slate-700 cursor-pointer select-none">
+                                  <span>📜 วิธีการจัดตั้ง Google Apps Script & รหัสโค้ด</span>
+                                  <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                                </summary>
+                                <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[10px] text-slate-650 space-y-2.5 font-sans leading-relaxed">
+                                  <p className="font-bold text-amber-600">🛠️ ขั้นตอนการสร้าง:</p>
+                                  <ol className="list-decimal list-inside space-y-1 pl-1">
+                                    <li>เข้าสู่ระบบ <a href="https://script.google.com" target="_blank" rel="noreferrer" className="underline font-semibold text-blue-600">Google Apps Script Dashboard</a></li>
+                                    <li>กด <b>โครงการใหม่ (New Project)</b> และลบโค้ดเริ่มต้นทิ้งทั้งหมด</li>
+                                    <li>คัดลอกรหัสโค้ดด้านล่างนี้ และนำไปวางแทนที่</li>
+                                    <li>คลิก <b>การทำให้ใช้งานได้ (Deploy)</b> &gt; <b>การทำให้ใช้งานได้ใหม่ (New Deployment)</b></li>
+                                    <li>เลือกประเภทเป็น <b>เว็บแอป (Web App)</b>, โครงการรันในนาม: <b>ฉัน (Me)</b> และผู้เข้าถึง: <b>ทุกคน (Anyone)</b></li>
+                                    <li>กด Deploy และกดยืนยันสิทธิ์สตรีมระบบ จากนั้นคัดเอา URL เว็บแอปมาใส่ในช่องด้านบน</li>
+                                  </ol>
+                                  <div className="relative mt-2">
+                                    <textarea
+                                      readOnly
+                                      value={GOOGLE_APPS_SCRIPT_TEMPLATE}
+                                      className="w-full h-36 p-2.5 bg-slate-900 text-emerald-400 rounded-lg font-mono text-[9px] select-all outline-none border border-slate-700"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_TEMPLATE);
+                                        triggerToast("success", "คัดลอกรหัสโค้ด Google Apps Script สำเร็จแล้ว!");
+                                      }}
+                                      className="absolute right-1.5 top-1.5 px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded text-[9px] cursor-pointer shadow border-none transition-colors"
+                                    >
+                                      คัดลอกโค้ด
+                                    </button>
+                                  </div>
+                                </div>
+                              </details>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 flex justify-end">
                           <button
                             type="submit"
                             disabled={isSaving}
-                            className="flex items-center gap-1 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs border-none cursor-pointer"
+                            className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs border-none cursor-pointer transition-all shadow"
                           >
-                            <Save className="w-3.5 h-3.5" />
-                            {isSaving ? "กำลังบันทึก..." : "บันทึกตั้งค่ากรรมการ & ผอ."}
+                            <Save className="w-4 h-4" />
+                            {isSaving ? "กำลังบันทึก..." : "บันทึกตั้งค่าโครงสร้างและเชื่อม Drive"}
                           </button>
                         </div>
                       </form>

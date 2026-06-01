@@ -31,12 +31,15 @@ export interface School {
   directorName?: string; // ชื่อประธานกรรมการประเมิน (ผู้อำนวยการโรงเรียน)
   paCommitteeMembers?: string[]; // รายชื่อคณะกรรมการประเมินท่านอื่น
   dateCreated: string;
+  driveFolderId?: string; // โฟลเดอร์ Google Drive แม่ของโรงเรียน
+  gasWebUrl?: string; // ลิงก์ Google Apps Script Web App สำหรับเชื่อมข้อมูล Drive
 }
 
 export interface EvidenceLink {
   id: string;
   name: string; // ชื่อหลักฐาน (เช่น แผนการจัดการเรียนรู้, ภาพกิจกรรม, เกียรติบัตร)
   url: string; // URL ลิงก์ (เช่น Google Drive, YouTube, Slideshare)
+  type?: 'link' | 'image'; // ประเภทไฟล์ หลักฐาน (ลิงก์ หรือ รูปภาพแนวนอน)
 }
 
 export interface PAIndicator {
