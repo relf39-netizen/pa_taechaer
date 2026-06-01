@@ -290,7 +290,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setIsSaving(true);
     try {
       const res = await fetch("/api/teachers/me", {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teacherId: data.teacher.id,
@@ -488,7 +488,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setIsSaving(true);
     try {
       const res = await fetch(`/api/indicators/${selectedIndId}`, {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teacherId: data.teacher.id,
@@ -562,7 +562,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setIsSaving(true);
     try {
       const res = await fetch("/api/challenge", {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teacherId: data.teacher.id,

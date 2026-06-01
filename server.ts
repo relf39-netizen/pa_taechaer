@@ -878,7 +878,7 @@ app.get("/api/teachers/slug/:slug", (req, res) => {
 });
 
 // 5. Update Teacher Profile
-app.put("/api/teachers/me", (req, res) => {
+const updateTeacherProfile = (req: express.Request, res: express.Response) => {
   const { teacherId, name, position, school, affiliation, phone, academicYear, headerImage, avatarImage, themeColor } = req.body;
 
   const teacherRef = Object.values(localDB.teachers).find(t => t.id === teacherId);
@@ -915,10 +915,12 @@ app.put("/api/teachers/me", (req, res) => {
     message: "อัปเดตข้อมูลประวัติตนเองเรียบร้อยแล้ว",
     teacher: teacherRef
   });
-});
+};
+app.put("/api/teachers/me", updateTeacherProfile);
+app.post("/api/teachers/me", updateTeacherProfile);
 
 // 6. Update Indicator
-app.put("/api/indicators/:id", (req, res) => {
+const updateIndicator = (req: express.Request, res: express.Response) => {
   const { id } = req.params; // indicator ID (1.1, etc.)
   const { teacherId, description, status, evidenceLinks } = req.body;
 
@@ -944,10 +946,12 @@ app.put("/api/indicators/:id", (req, res) => {
     message: `อัปเดตตัวชี้วัดที่ ${id} สำเร็จแล้ว`,
     indicator: indicator
   });
-});
+};
+app.put("/api/indicators/:id", updateIndicator);
+app.post("/api/indicators/:id", updateIndicator);
 
 // 7. Update Part 2 (Challenge)
-app.put("/api/challenge", (req, res) => {
+const updateChallenge = (req: express.Request, res: express.Response) => {
   const { teacherId, title, problemContext, process, quantitativeOutput, qualitativeOutput, status, evidenceLinks } = req.body;
 
   const data = localDB.teacherDataList[teacherId];
@@ -972,7 +976,9 @@ app.put("/api/challenge", (req, res) => {
     message: "บันทึกข้อมูลส่วนประเด็นท้าทาย (ส่วนที่ 2) สำเร็จเรียบร้อยแล้ว",
     challenge: challenge
   });
-});
+};
+app.put("/api/challenge", updateChallenge);
+app.post("/api/challenge", updateChallenge);
 
 // 8. Admin operations: Approve status
 app.post("/api/admin/approve", (req, res) => {
@@ -994,7 +1000,7 @@ app.post("/api/admin/approve", (req, res) => {
 });
 
 // 9. Admin operations: Delete teacher
-app.delete("/api/admin/teachers/:id", (req, res) => {
+const deleteTeacher = (req: express.Request, res: express.Response) => {
   const { id } = req.params;
 
   const teacher = Object.values(localDB.teachers).find(t => t.id === id);
@@ -1012,7 +1018,9 @@ app.delete("/api/admin/teachers/:id", (req, res) => {
     success: true,
     message: "ลบบัญชีและรายงานประเมินผล PA ของผู้ใช้ครูเสร้จสิ้นแล้ว"
   });
-});
+};
+app.delete("/api/admin/teachers/:id", deleteTeacher);
+app.post("/api/admin/teachers/:id/delete", deleteTeacher);
 
 // 10. Database SQL / Scripts Downloader Exporter
 app.get("/api/db/export-sql", (req, res) => {

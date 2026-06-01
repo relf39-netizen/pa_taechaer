@@ -78,8 +78,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
     if (!window.confirm("คุณมั่นใจหรือไม่ว่าต้องการลบบัญชีและข้อตกลง PA ของครูคนนี้ออกจากระบบอย่างถาวร?")) return;
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/teachers/${teacherId}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/admin/teachers/${teacherId}/delete`, {
+        method: "POST",
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาดในการลบข้อมูล");
