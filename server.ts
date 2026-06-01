@@ -1298,19 +1298,19 @@ async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
   const hasDist = fs.existsSync(distPath) && fs.existsSync(path.join(distPath, "index.html"));
 
-  if (hasDist) {
-    console.log("Serving static production files from dist directory...");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  } else if (process.env.NODE_ENV !== "production") {
-    console.log("No built static files found. Initializing Vite development server...");
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Initializing Vite development server...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+  } else if (hasDist) {
+    console.log("Serving static production files from dist directory...");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   } else {
     app.get("*", (req, res) => {
       res.status(500).send("No static web build files found in 'dist' directory. Please run 'npm run build' first.");
