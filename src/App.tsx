@@ -109,6 +109,12 @@ export default function App() {
         <PublicProfile 
           slug={publicSlug} 
           onBackToSystem={navigateToHomeFromPublic} 
+          onLoginToEdit={() => {
+            const newUrl = window.location.origin + window.location.pathname;
+            window.history.pushState({}, document.title, newUrl);
+            setPublicSlug(null);
+            setCurrentView("auth");
+          }}
         />
       )}
 

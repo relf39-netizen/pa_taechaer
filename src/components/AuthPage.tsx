@@ -318,13 +318,23 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
               >
                 <div>
                   <h3 className="text-xl font-bold font-sans text-slate-800 mb-2">
-                    {loginRole === "admin" ? "เข้าใช้งานในฐานะผู้ดูแลสถานศึกษา" : "เข้าสู่ระบบเพื่อแก้ไขตัวชี้วัด PA"}
+                    {loginRole === "admin" ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" : "เข้าสู่ระบบเพื่อแก้ไขตัวชี้วัด PA"}
                   </h3>
                   <p className="text-sm font-sans text-slate-500">
                     {loginRole === "admin" 
-                      ? "ควบคุมบัญชีคุณครู ตรวจสอบ อนุมัติการเผยแพร่ลิงก์รายงานผลการปฏิบัติงาน" 
-                      : "กรอกข้อมูลอีเมลและรหัสผ่านเพื่อเข้าใช้งานแบบฟอร์มบันทึกตัวชี้วัดข้อตกลงการพัฒนางาน"}
+                      ? "อนุมัติโรงเรียนเครือข่าย มอบอำนวยการระบบและตรวจสอบสิทธิ์แอดมินย่อย" 
+                      : "กรอกข้อมูลอีเมลและรหัสผ่านเพื่อเข้าใช้งานแบบฟอร์มบันทึกตัวชี้วัดข้อตกลงการพัฒงาน"}
                   </p>
+                  
+                  {loginRole === "admin" && (
+                    <div className="mt-4 p-3.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs font-sans">
+                      <p className="font-bold mb-1">🔑 รหัสผู้ดูแลระบบสูงสุด (Super Admin Auth):</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        <li><b>Username:</b> <code className="bg-amber-100 px-1 py-0.5 rounded font-mono select-all">superadmin</code></li>
+                        <li><b>Password:</b> <code className="bg-amber-100 px-1 py-0.5 rounded font-mono select-all">superadmin123</code></li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">

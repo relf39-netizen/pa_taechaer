@@ -741,11 +741,14 @@ app.post("/api/auth/login", (req, res) => {
   const { email, password, role } = req.body;
 
   if (role === "admin") {
-    if (email === localDB.adminConfig.username && password === localDB.adminConfig.passwordHash) {
+    const isSuperAdmin = (email === "superadmin" && password === "superadmin123");
+    const isLocalAdmin = (email === localDB.adminConfig.username && password === localDB.adminConfig.passwordHash);
+    
+    if (isSuperAdmin || isLocalAdmin) {
       return res.json({
         success: true,
-        message: "เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ",
-        user: { role: "admin", username: "admin", name: "ผู้ดูแลระบบกลาง" }
+        message: "เข้าสู่ระบบในฐานะผู้ดูแลระบบสูงสุด (Super Admin) สำเร็จ",
+        user: { role: "admin", username: "superadmin", name: "ผู้ดูแลระบบสูงสุด (Super Admin)" }
       });
     }
     return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่าน Admin ไม่ถูกต้อง" });
@@ -764,7 +767,7 @@ app.post("/api/auth/login", (req, res) => {
     return res.json({
       success: true,
       message: "เข้าสู่ระบบสำเร็จ",
-      user: { role: "teacher", ...teacher },
+      user: { role: teacher.role || "teacher", ...teacher },
       data: data
     });
   }

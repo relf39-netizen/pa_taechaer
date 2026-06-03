@@ -14,6 +14,7 @@ interface PublicProfileProps {
     data: TeacherData;
   } | null;
   onBackToSystem?: () => void;
+  onLoginToEdit?: () => void;
 }
 
 export interface ThemePreset {
@@ -139,7 +140,7 @@ export const THEMES: Record<string, ThemePreset> = {
   }
 };
 
-export default function PublicProfile({ slug, initialProvidedTeacherData, onBackToSystem }: PublicProfileProps) {
+export default function PublicProfile({ slug, initialProvidedTeacherData, onBackToSystem, onLoginToEdit }: PublicProfileProps) {
   const [profileData, setProfileData] = useState<TeacherData | null>(
     initialProvidedTeacherData ? initialProvidedTeacherData.data : null
   );
@@ -242,6 +243,35 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-16 animate-fade-in">
+      
+      {/* Top Utility Header for Public Visitors & Educators */}
+      <div className="bg-slate-900 border-b border-slate-800 text-white px-4 py-3 text-xs font-sans">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block animate-pulse"></span>
+            <span className="text-slate-300 font-medium">ระบบรายงานข้อตกลงในการพัฒนางาน (PA) &bull; แฟ้มสะสมงานดิจิทัลเพื่อเลื่อนวิทยฐานะ</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            {onBackToSystem && (
+              <button
+                onClick={onBackToSystem}
+                className="text-slate-300 hover:text-white bg-transparent border-none cursor-pointer transition-colors text-xs font-semibold"
+              >
+                🏠 กลับสารบบหลัก
+              </button>
+            )}
+            <span className="text-slate-700 hidden sm:inline">|</span>
+            {onLoginToEdit && (
+              <button
+                onClick={onLoginToEdit}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer scale-95 md:scale-100 hover:scale-[1.02] transform transition-all text-xs flex items-center gap-1"
+              >
+                🔑 เข้าสู่ระบบเพื่อแก้ไขแผงรายงาน PA นี้
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       
       {/* Top Banner Cover For Educator - Geometric Balance with Deep Blue background and Gold highlight border */}
       <section 

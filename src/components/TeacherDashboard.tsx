@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { 
   User, School, Landmark, Phone, Globe, BookOpen, Clock, 
   CheckCircle2, Plus, Trash2, FileText, ExternalLink, Save, 
-  Eye, Check, AlertCircle, Sparkles, LogOut, Code, Library
+  Eye, Check, AlertCircle, Sparkles, LogOut, Code, Library,
+  Edit2, Camera, Image
 } from "lucide-react";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 import PublicProfile from "./PublicProfile";
@@ -102,6 +103,16 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [affiliation, setAffiliation] = useState(data.teacher.affiliation);
   const [phone, setPhone] = useState(data.teacher.phone);
   const [academicYear, setAcademicYear] = useState(data.teacher.academicYear);
+  const [avatarImage, setAvatarImage] = useState(data.teacher.avatarImage || "");
+  const [headerImage, setHeaderImage] = useState(data.teacher.headerImage || "");
+  const [themeColor, setThemeColor] = useState(data.teacher.themeColor || "blue");
+
+  // School Admin editing another teacher state variables
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPosition, setEditPosition] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editAcademicYear, setEditAcademicYear] = useState("");
 
   // Active Part 1 indicator state
   const [selectedIndId, setSelectedIndId] = useState<string>("1.1");
@@ -284,6 +295,66 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     }
   };
 
+  // School Admin starts editing another teacher
+  const handleStartEditTeacher = (teacher: Teacher) => {
+    setEditingTeacher(teacher);
+    setEditName(teacher.name || "");
+    setEditPosition(teacher.position || "");
+    setEditPhone(teacher.phone || "");
+    setEditAcademicYear(teacher.academicYear || "2569");
+  };
+
+  // School Admin saves edits to another teacher
+  const handleSaveEditTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    try {
+      const res = await fetch("/api/teachers/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherId: editingTeacher.id,
+          name: editName,
+          position: editPosition,
+          school: editingTeacher.school,
+          affiliation: editingTeacher.affiliation,
+          phone: editPhone,
+          academicYear: editAcademicYear
+        }),
+      });
+      const responseData = await res.json();
+      if (!res.ok) throw new Error(responseData.message || "อัปเดตล้มเหลว");
+      
+      triggerToast("success", "แก้ไขข้อมูลคุณครูสำเร็จเป็นที่เรียบร้อย");
+      setSchoolTeachers(prev => prev.map(t => t.id === editingTeacher.id ? responseData.teacher : t));
+      setEditingTeacher(null);
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    }
+  };
+
+  // School Admin deletes a teacher
+  const handleDeleteTeacher = async (teacherId: string) => {
+    if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีและรายงานประเมินผล PA ทั้งหมดของคุณครูท่านนี้ออกจากโรงเรียน? การดำเนินการนี้ไม่สามารถย้อนคืนได้")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const resData = await res.json();
+      if (res.ok && resData.success) {
+        triggerToast("success", "ลบข้อมูลสะสมผลงานคุณครูออกจากสถานศึกษาสำเร็จ");
+        setSchoolTeachers(prev => prev.filter(t => t.id !== teacherId));
+      } else {
+        throw new Error(resData.message || "ลบผู้ใช้ล้มเหลว");
+      }
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    }
+  };
+
   // 1. Update Profile API
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,7 +370,10 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           school,
           affiliation,
           phone,
-          academicYear
+          academicYear,
+          avatarImage,
+          headerImage,
+          themeColor
         }),
       });
       const responseData = await res.json();
@@ -1450,6 +1524,142 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                   </div>
                 </div>
 
+                {/* ADVANCED BRANDING: AVATAR, COVER, AND portfolio THEMES & PALETTES */}
+                <div className="border-t border-slate-100 pt-5 mt-5 space-y-4">
+                  <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    🎨 ศิลป์และสีสันแผงพอร์ตโฟลิโอ (Portfolio Look & Theme)
+                  </h4>
+                  <p className="text-[11px] text-slate-500">ปรับเปลี่ยนแม่สีหลัก รูปภาพประจำตัว และภาพหน้าปกพอร์ตโฟลิโอประเมินงานของคุณครูได้ตามอัธยาศัย</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* 1. Avatar Photo */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-between">
+                      <div className="text-center w-full">
+                        <label className="block text-xs font-semibold text-slate-700 mb-2">
+                          📸 รูปถ่ายประจำตัวคุณครู
+                        </label>
+                        <div className="w-20 h-20 rounded-full bg-slate-200 border-2 border-dashed border-slate-300 overflow-hidden mx-auto flex items-center justify-center relative group">
+                          {avatarImage ? (
+                            <img src={avatarImage} alt="Profile photo avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-8 h-8 text-slate-400" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3.5 w-full">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                triggerToast("error", "ขนาดไฟล์ห้ามเกิน 2MB");
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => setAvatarImage(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="avatar-upload-file"
+                        />
+                        <label
+                          htmlFor="avatar-upload-file"
+                          className="w-full text-center block py-1.5 px-3 bg-white hover:bg-slate-100 border border-slate-200 text-[10px] rounded-lg font-bold text-slate-700 cursor-pointer shadow-sm transition-all text-ellipsis overflow-hidden"
+                        >
+                          อัปโหลดรูปถ่าย (.png/.jpg)
+                        </label>
+                        {avatarImage && (
+                          <button
+                            type="button"
+                            onClick={() => setAvatarImage("")}
+                            className="w-full mt-1.5 text-center block py-1 px-3 bg-transparent hover:text-rose-600 text-slate-400 text-[10px] font-semibold border-none cursor-pointer"
+                          >
+                            ลบรูปภาพโปรไฟล์
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. Cover Banner Photo */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-between">
+                      <div className="text-center w-full">
+                        <label className="block text-xs font-semibold text-slate-700 mb-2">
+                          🖼️ ภาพหน้าปกแบนเนอร์ด้านบน
+                        </label>
+                        <div className="w-full h-12 bg-slate-200 border border-slate-300 rounded-lg overflow-hidden flex items-center justify-center relative group">
+                          {headerImage ? (
+                            <img src={headerImage} alt="Cover Banner" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">ใช้สีพื้นหลังตามธีมหลัก</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3.5 w-full">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                triggerToast("error", "ขนาดไฟล์ห้ามเกิน 2MB");
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => setHeaderImage(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="cover-upload-file"
+                        />
+                        <label
+                          htmlFor="cover-upload-file"
+                          className="w-full text-center block py-1.5 px-3 bg-white hover:bg-slate-100 border border-slate-250 text-[10px] rounded-lg font-bold text-slate-700 cursor-pointer shadow-sm transition-all text-ellipsis overflow-hidden"
+                        >
+                          อัปโหลดแบนเนอร์หน้าปก
+                        </label>
+                        {headerImage && (
+                          <button
+                            type="button"
+                            onClick={() => setHeaderImage("")}
+                            className="w-full mt-1.5 text-center block py-1 px-3 bg-transparent hover:text-rose-600 text-slate-400 text-[10px] font-semibold border-none cursor-pointer"
+                          >
+                            ลบภาพปก
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. Portfolio Palette / theme selection */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          🎨 เลือกชุดภาพลักษณ์และธีมพอร์ต
+                        </label>
+                        <select
+                          value={themeColor}
+                          onChange={(e) => setThemeColor(e.target.value)}
+                          className="block w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-sans"
+                        >
+                          <option value="blue">น้ำเงินภูมิฐาน (Default Navy)</option>
+                          <option value="green">เขียวขจีวิชาการ (Academic Emerald)</option>
+                          <option value="purple">ม่วงอัญชันมงคล (Royal Violet)</option>
+                          <option value="amber">แสดประเสริฐศรัทธา (Aesthetic Amber)</option>
+                          <option value="slate">เทาโมเดิร์นทันสมัย (Modern Charcoal)</option>
+                          <option value="rose">ชมพูกุหลาบวิวัฒนา (Enchanting Rose)</option>
+                        </select>
+                      </div>
+                      <div className="p-2 bg-white border border-slate-200 rounded-lg text-[10px] text-slate-500 leading-relaxed font-sans">
+                        💡 ธีมสีและสัญลักษณ์ทั้งหมดของคุณ จะตอบรับรูปแบบธีมที่ท่านเลือกอย่างเป็นระเบียบและสวยงามต่อคณะกรรมการ
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="pt-4 border-t border-slate-100 flex justify-end">
                   <button
                     type="submit"
@@ -1740,11 +1950,11 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 sm:self-center">
+                              <div className="flex flex-wrap items-center gap-2 sm:self-center">
                                 {teacher.status !== "approved" ? (
                                   <button
                                     onClick={() => handleUpdateTeacherStatus(teacher.id, "approved")}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold border-none cursor-pointer shadow-sm"
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold border-none cursor-pointer shadow-sm"
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                     อนุมัติสิทธิ์
@@ -1752,12 +1962,30 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                                 ) : (
                                   <button
                                     onClick={() => handleUpdateTeacherStatus(teacher.id, "pending")}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold border border-rose-205 cursor-pointer"
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold border border-rose-250 cursor-pointer"
                                   >
                                     <AlertCircle className="w-3.5 h-3.5" />
-                                    ระงับสิทธิ์ชั่วคราว
+                                    ระงับสิทธิ์
                                   </button>
                                 )}
+
+                                <button
+                                  onClick={() => handleStartEditTeacher(teacher)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                                  title="แก้ไขข้อมูลสังกัด"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                                  แก้ไข
+                                </button>
+
+                                <button
+                                  onClick={() => handleDeleteTeacher(teacher.id)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                                  title="ลบผู้ใช้ออกจากโรงเรียน"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                  ลบ
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -1766,6 +1994,103 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                     </div>
                   </div>
 
+                </div>
+              )}
+
+              {/* Edit Teacher Modal Overlay */}
+              {editingTeacher && (
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl overflow-hidden flex flex-col">
+                    <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-sm">📝 แก้ไขข้อมูลประวัติคุณครู</h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">ปรับแต่งรายละเอียดยศวิชาการและข้อมูลประเมินผลของ {editingTeacher.name}</p>
+                      </div>
+                      <button 
+                        onClick={() => setEditingTeacher(null)}
+                        className="text-white bg-transparent border-none text-xl font-bold cursor-pointer hover:text-slate-200 leading-none outline-none"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    
+                    <form onSubmit={handleSaveEditTeacher} className="p-6 space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          ชื่อ-นามสกุลคุณครู <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-sans"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          วิทยฐานะปัจจุบัน <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={editPosition}
+                          onChange={(e) => setEditPosition(e.target.value)}
+                          className="block w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-sans"
+                        >
+                          <option value="ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)">ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)</option>
+                          <option value="ครูวิทยฐานะชำนาญการ">ครูวิทยฐานะชำนาญการ</option>
+                          <option value="ครูวิทยฐานะชำนาญการพิเศษ">ครูวิทยฐานะชำนาญการพิเศษ</option>
+                          <option value="ครูวิทยฐานะเชี่ยวชาญ">ครูวิทยฐานะเชี่ยวชาญ</option>
+                          <option value="ครูวิทยฐานะเชี่ยวชาญพิเศษ">ครูวิทยฐานะเชี่ยวชาญพิเศษ</option>
+                          <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          เบอร์โทรศัพท์ติดต่อ
+                        </label>
+                        <input
+                          type="text"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-sans font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          ปีงบประมาณที่ประเมิน <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={editAcademicYear}
+                          onChange={(e) => setEditAcademicYear(e.target.value)}
+                          className="block w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-sans"
+                        >
+                          <option value="2569">2569</option>
+                          <option value="2568">2568</option>
+                          <option value="2567">2567</option>
+                        </select>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTeacher(null)}
+                          className="px-4 py-2 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 cursor-pointer"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold border-none cursor-pointer flex items-center gap-1"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          บันทึกข้อมูลแก้ไข
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               )}
             </div>

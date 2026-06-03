@@ -12,8 +12,9 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [schools, setSchools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "mysql">("teachers");
+  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql">("teachers");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // SQL & Windows setup instructions states
@@ -37,6 +38,18 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
     }
   };
 
+  const fetchSchools = async () => {
+    try {
+      const res = await fetch("/api/schools");
+      const resData = await res.json();
+      if (resData.success) {
+        setSchools(resData.schools || []);
+      }
+    } catch (err) {
+      console.error("Error fetching schools List:", err);
+    }
+  };
+
   const fetchSqlExporterData = async () => {
     try {
       const res = await fetch("/api/db/export-sql");
@@ -52,8 +65,29 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   useEffect(() => {
     fetchTeachers();
+    fetchSchools();
     fetchSqlExporterData();
   }, []);
+
+  const handleApproveSchool = async (smissCode: string, currentStatus: string) => {
+    setMessage(null);
+    try {
+      const newStatus = currentStatus === "approved" ? "pending" : "approved";
+      const res = await fetch("/api/admin/schools/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ smissCode, status: newStatus }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาดในการปรับเปลี่ยนสถานะ");
+
+      setMessage({ type: "success", text: resData.message });
+      fetchSchools();
+      fetchTeachers(); // Refresh list to get linked teacher updates
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    }
+  };
 
   const handleApprove = async (teacherId: string, currentStatus: string) => {
     setMessage(null);
@@ -138,6 +172,13 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
               id="subtab-teachers"
             >
               ควบคุมสิทธิ์รายชื่อคุณครู ({teachers.length})
+            </button>
+            <button
+              onClick={() => setActiveSubTab("schools")}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg border-none cursor-pointer transition-colors ${activeSubTab === "schools" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              id="subtab-schools"
+            >
+              อนุมัติสิทธิ์จัดตั้งโรงเรียน ({schools.length})
             </button>
             <button
               onClick={() => setActiveSubTab("mysql")}
@@ -255,6 +296,100 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: SCHOOLS SYSTEM CONTROL PANEL */}
+        {activeSubTab === "schools" && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-250 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800">รายชื่อคำขอจองจัดตั้งและเปิดใช้สิทธิ์ระดับเครือข่ายโรงเรียน</h3>
+                <p className="text-xs text-slate-500">อนุมัติและคัดกรองใบสมัครโรงเรียน เพื่อมอบสิทธิ์การเป็น Admin โรงเรียนในการควบคุมครูเครือข่ายสังกัดเดียวกัน</p>
+              </div>
+              <button
+                onClick={fetchSchools}
+                className="text-xs font-semibold border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 cursor-pointer"
+              >
+                รีเฟรชรหัสโรงเรียน
+              </button>
+            </div>
+
+            {schools.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 italic">ไม่พบบันทึกการขอจัดตั้งโรงเรียนภายในเซิร์ฟเวอร์</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3.5 px-5">รหัสโรงเรียน (SMISS)</th>
+                      <th className="py-3.5 px-5">ชื่อสถานศึกษา</th>
+                      <th className="py-3.5 px-5">สังกัด / เครือข่ายเขตพื้นที่</th>
+                      <th className="py-3.5 px-5">ผู้ดูแลระบบสิทธิ์ครูใหญ่</th>
+                      <th className="py-3.5 px-5">สถานะ</th>
+                      <th className="py-3.5 px-5 text-right">จัดการระบบสิทธิ์</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {schools.map((sch) => {
+                      // Find registered school admin teacher email
+                      const leadTeacher = teachers.find(t => t.id === sch.adminTeacherId);
+                      return (
+                        <tr key={sch.smissCode} className="hover:bg-slate-50">
+                          <td className="py-4 px-5 font-mono font-semibold text-slate-900">
+                            {sch.smissCode}
+                          </td>
+                          <td className="py-4 px-5 font-semibold text-slate-800">
+                            {sch.name}
+                          </td>
+                          <td className="py-4 px-5 text-slate-600">
+                            {sch.affiliation || "-"}
+                          </td>
+                          <td className="py-4 px-5">
+                            {leadTeacher ? (
+                              <div>
+                                <p className="font-semibold text-slate-800">{leadTeacher.name}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">{leadTeacher.email}</p>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">ไม่ได้กำหนดแอดมินหลัก</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5">
+                            {sch.status === "approved" ? (
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-250">
+                                เปิดสิทธิ์และอนุมัติแล้ว
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                รอการอนุมัติติดตั้ง
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-right">
+                            {sch.status !== "approved" ? (
+                              <button
+                                onClick={() => handleApproveSchool(sch.smissCode, sch.status)}
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg border-none cursor-pointer transition-colors"
+                              >
+                                อนุมัติสิทธิ์ก่อตั้ง
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleApproveSchool(sch.smissCode, sch.status)}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-colors"
+                              >
+                                ระงับการใช้งานโรงเรียน
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
