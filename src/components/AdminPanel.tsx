@@ -125,6 +125,27 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
     }
   };
 
+  const handleToggleSchoolAdmin = async (teacherId: string, smissCode: string, isCurrentlyAdminVisible: boolean) => {
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/teachers/set-school-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherId,
+          smissCode,
+          makeAdmin: !isCurrentlyAdminVisible
+        })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาดในการกำหนดบทบาทแอดมิน");
+      setMessage({ type: "success", text: resData.message });
+      fetchTeachers();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    }
+  };
+
   const handleCopySql = () => {
     navigator.clipboard.writeText(sqlSchema);
     setCopiedSql(true);
@@ -246,10 +267,24 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                         <td className="py-4 px-5">
                           <span className="font-bold text-slate-800 text-sm block">{t.name}</span>
                           <span className="text-slate-400 text-[10px] break-all">{t.email}</span>
+                          {t.idCard && (
+                            <span className="text-slate-500 text-[10px] block font-mono">ID: {t.idCard}</span>
+                          )}
                         </td>
                         <td className="py-4 px-5">
-                          <span className="font-semibold block">{t.school}</span>
-                          <span className="text-slate-500">{t.position}</span>
+                          <span className="font-semibold block text-slate-700">{t.school}</span>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-slate-500 font-medium">{t.position}</span>
+                            {t.role === "school_admin" && (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">👑 School Admin</span>
+                            )}
+                            {t.role === "director" && (
+                              <span className="bg-indigo-100 text-indigo-900 border border-indigo-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">💼 ผู้อำนวยการ</span>
+                            )}
+                            {(!t.role || t.role === "teacher") && (
+                              <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-medium px-1.5 py-0.5 rounded">📝 ครูทั่วไป</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-4 px-5 font-mono text-slate-600">พ.ศ. {t.academicYear}</td>
                         <td className="py-4 px-5">
@@ -266,7 +301,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                         <td className="py-4 px-5 text-center">
                           {t.status === "approved" ? (
                             <span className="inline-block bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-150">
-                              ออนไลน์สำร็จ
+                              ออนไลน์สำเร็จ
                             </span>
                           ) : (
                             <span className="inline-block bg-amber-50 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-150">
@@ -275,6 +310,20 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                           )}
                         </td>
                         <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
+                          {t.schoolSmissCode && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolAdmin(t.id, t.schoolSmissCode!, t.role === "school_admin")}
+                              className={`px-2 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border transition-colors ${
+                                t.role === "school_admin"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                  : "bg-slate-50 text-slate-750 border-slate-200 hover:bg-slate-150"
+                              }`}
+                              title="กำหนดบทบาทผู้บริหารแอดมินสำหรับการอนุมัติครูภายในสถาบัน"
+                            >
+                              {t.role === "school_admin" ? "👑 ปลดแอดมิน" : "👑 ตั้งเป็นแอดมิน"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleApprove(t.id, t.status)}

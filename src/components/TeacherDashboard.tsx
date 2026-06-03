@@ -107,6 +107,12 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [headerImage, setHeaderImage] = useState(data.teacher.headerImage || "");
   const [themeColor, setThemeColor] = useState(data.teacher.themeColor || "blue");
 
+  // Security / Password change states
+  const [mustChangePassword, setMustChangePassword] = useState(data.teacher.mustChangePassword || false);
+  const [newPasswordVal, setNewPasswordVal] = useState("");
+  const [confirmPasswordVal, setConfirmPasswordVal] = useState("");
+  const [passChangeLoading, setPassChangeLoading] = useState(false);
+
   // School Admin editing another teacher state variables
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [editName, setEditName] = useState("");
@@ -352,6 +358,58 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       }
     } catch (err: any) {
       triggerToast("error", err.message);
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPasswordVal.trim().length < 6) {
+      triggerToast("error", "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+      return;
+    }
+    if (newPasswordVal !== confirmPasswordVal) {
+      triggerToast("error", "รหัสผ่านทั้งสองช่องระบุไม่ตรงกัน");
+      return;
+    }
+
+    setPassChangeLoading(true);
+    try {
+      const res = await fetch("/api/teachers/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherId: data.teacher.id,
+          newPassword: newPasswordVal.trim()
+        }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+
+      setMustChangePassword(false);
+      setData(prev => ({
+        ...prev,
+        teacher: {
+          ...prev.teacher,
+          mustChangePassword: false,
+          password: newPasswordVal.trim()
+        }
+      }));
+
+      const stored = localStorage.getItem("pa_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.mustChangePassword = false;
+        parsed.password = newPasswordVal.trim();
+        localStorage.setItem("pa_user", JSON.stringify(parsed));
+      }
+
+      setNewPasswordVal("");
+      setConfirmPasswordVal("");
+      triggerToast("success", "เปลี่ยนรหัสผ่านเพื่อความปลอดภัยเรียบร้อยแล้ว!");
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    } finally {
+      setPassChangeLoading(false);
     }
   };
 
@@ -692,6 +750,70 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f1f5f9] text-slate-850 font-sans">
+      {/* ⚠️ FORCED PASSWORD CHANGE PROCESS DIALOG */}
+      <AnimatePresence>
+        {mustChangePassword && (
+          <div className="fixed inset-0 bg-slate-900/90 z-50 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white max-w-sm w-full rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+            >
+              <div className="bg-[#1e3a8a] py-6 px-6 text-white border-b-4 border-[#facc15] text-center">
+                <div className="bg-white/10 p-3 rounded-full w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+                  <User className="w-7 h-7 text-[#facc15]" />
+                </div>
+                <h3 className="text-lg font-bold font-sans">กรุณาตั้งค่ารหัสผ่านใหม่</h3>
+                <p className="text-xs text-blue-150 mt-1">นี่คือการเข้าสู่ระบบครั้งแรกของคุณครู เพื่อความปลอดภัยกรุณาเปลี่ยนจากรหัสผ่านเริ่มต้นทั่วไป (123456)</p>
+              </div>
+
+              <form onSubmit={handlePasswordChangeSubmit} className="p-6 space-y-4 font-sans">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={newPasswordVal}
+                    onChange={(e) => setNewPasswordVal(e.target.value)}
+                    placeholder="กรอกรหัสใหม่ที่ปลอดภัยของท่าน"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-705 mb-1.5">
+                    ยืนยันรหัสผ่านใหม่อีกครั้ง
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmPasswordVal}
+                    onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                    placeholder="กรอกรหัสผ่านใหม่อีกครั้งให้ตรงกัน"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={passChangeLoading}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#facc15] hover:bg-[#ebd113] text-slate-900 font-sans text-sm font-bold border-none rounded-xl cursor-pointer shadow transition-all disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-slate-950" />
+                    {passChangeLoading ? "กำลังปรับเปลี่ยน..." : "ยืนยันและเปิดใช้งานบัญชี"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Toast Warning */}
       <AnimatePresence>
         {toast && (
@@ -1671,6 +1793,59 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                   </button>
                 </div>
               </form>
+
+              {/* CHANGE PASSWORD COMPONENT */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-150 p-6 mt-6">
+                <div className="flex items-center gap-3 border-b border-slate-100 pb-3.5 mb-4">
+                  <div className="bg-amber-500/10 text-amber-700 p-2 rounded-xl">
+                    <User className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">🔒 เปลี่ยนรหัสผ่านเข้าใช้งานระบบ</h4>
+                    <p className="text-xs text-slate-500">กรอกรหัสผ่านหลักใหม่เพื่อทดแทน รหัสผ่านชั่วคราวเริ่มต้น 123456 เพื่อความปลอดภัยขั้นสูงสุดในการใช้งาน</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 max-w-sm">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={newPasswordVal}
+                      onChange={(e) => setNewPasswordVal(e.target.value)}
+                      placeholder="ระบุรหัสความปลอดภัยใหม่ของคุณ"
+                      className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-sans"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      ยืนยันรหัสผ่านใหม่อีกครั้ง <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={confirmPasswordVal}
+                      onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                      placeholder="กรอกรหัสผ่านซ้ำอีกครั้งเพื่อประทับตรงกัน"
+                      className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-sans"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={passChangeLoading}
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-sans text-xs font-bold border-none rounded-xl cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    {passChangeLoading ? "กำลังปรับปรุง..." : "ปรับปรุงและบันทึกรหัสผ่านใหม่"}
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 

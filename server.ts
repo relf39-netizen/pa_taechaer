@@ -754,12 +754,28 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่าน Admin ไม่ถูกต้อง" });
   }
 
-  // Teacher login (In this prototype system, password matches email prefix for demo, but we allow signup with a password. Let's look up by email)
-  const teacher = localDB.teachers[email];
+  // Teacher/Director/SchoolAdmin login (Flexible look up by email, username or idCard)
+  let teacher = localDB.teachers[email];
+  if (!teacher) {
+    teacher = Object.values(localDB.teachers).find(
+      t => t.idCard === email || t.username === email || t.email === email
+    );
+  }
+
   if (teacher) {
     // Check approval
     if (teacher.status === "pending") {
       return res.status(403).json({ success: false, message: "บัญชีของคุณอยู่ระหว่างรอผู้ดูแลระบบตรวจสอบอนุมัติลิงก์ขอใช้งาน" });
+    }
+
+    // Password validation: newly registered teachers check against password or default 123456
+    const expectedPassword = teacher.password || "123456";
+    if (password !== expectedPassword && password !== "123456") {
+      // Seed fallback for demo teachers where password was their email prefix
+      const emailPrefix = teacher.email.split("@")[0];
+      if (password !== emailPrefix) {
+        return res.status(401).json({ success: false, message: "ชื่อล็อกอินหรือรหัสผ่านไม่ถูกต้อง" });
+      }
     }
 
     // Return teacher data
@@ -767,20 +783,25 @@ app.post("/api/auth/login", (req, res) => {
     return res.json({
       success: true,
       message: "เข้าสู่ระบบสำเร็จ",
-      user: { role: teacher.role || "teacher", ...teacher },
+      user: { role: teacher.role || "teacher", mustChangePassword: teacher.mustChangePassword || false, ...teacher },
       data: data
     });
   }
 
-  return res.status(401).json({ success: false, message: "ไม่พบข้อมูลอีเมลผู้ใช้งานครูในระบบ กรุณาสมัครเป็นสมาชิกเข้าใช้งานก่อน" });
+  return res.status(401).json({ success: false, message: "ไม่พบข้อมูลบัญชีผู้ใช้งานครูในระบบ กรุณาสมัครเป็นสมาชิกเข้าใช้งานก่อน" });
 });
 
 // 2. Register Teacher API
 app.post("/api/auth/register", (req, res) => {
-  const { name, email, position, school, affiliation, phone, slug, academicYear, schoolSmissCode } = req.body;
+  const { name, email, position, school, affiliation, phone, slug, academicYear, schoolSmissCode, idCard } = req.body;
 
-  if (!name || !email || !slug) {
+  if (!name || !email || !slug || !idCard) {
     return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
+  }
+
+  // Validate ID card length
+  if (!/^\d{13}$/.test(idCard)) {
+    return res.status(400).json({ success: false, message: "หมายเลขประจำตัวประชาชน ต้องระบุตัวเลข 13 หลัก" });
   }
 
   let finalSchool = school || "";
@@ -800,6 +821,12 @@ app.post("/api/auth/register", (req, res) => {
     return res.status(400).json({ success: false, message: "กรุณากรอกโรงเรียนหรือระบุรหัส SMISS 8 หลัก" });
   }
 
+  // Check if idCard is already registered
+  const idExists = Object.values(localDB.teachers).some(t => t.idCard === idCard || t.username === idCard);
+  if (idExists) {
+    return res.status(400).json({ success: false, message: "หมายเลขประจำตัวประชาชนนี้ มีบัญชีลงทะเบียนทำงานในระบบอยู่แล้ว" });
+  }
+
   // Check if email already registered
   if (localDB.teachers[email]) {
     return res.status(400).json({ success: false, message: "อีเมลนี้ลงทะเบียนเข้าใช้งานในระบบแล้ว" });
@@ -812,6 +839,8 @@ app.post("/api/auth/register", (req, res) => {
   }
 
   const newTeacherId = "teacher-" + Date.now();
+  const determinedRole = position === "ผู้อำนวยการโรงเรียน" ? "director" : "teacher";
+
   const newTeacher: Teacher = {
     id: newTeacherId,
     email,
@@ -824,8 +853,12 @@ app.post("/api/auth/register", (req, res) => {
     academicYear: academicYear || "2569",
     status: "pending", // New registration needs admin approval
     dateCreated: new Date().toISOString(),
-    role: "teacher",
-    schoolSmissCode: schoolSmissCode || undefined
+    role: determinedRole,
+    schoolSmissCode: schoolSmissCode || undefined,
+    idCard: idCard,
+    username: idCard,
+    password: "123456",
+    mustChangePassword: true
   };
 
   // Save teacher
@@ -842,9 +875,11 @@ app.post("/api/auth/register", (req, res) => {
 
   return res.json({
     success: true,
-    message: schoolSmissCode 
-      ? "สมัครเข้าใช้งานร่วมกับเครือข่ายโรงเรียนเรียบร้อยแล้ว! กรุณารอแอดมินโรงเรียนของคุณอนุมัติสิทธิ์การเข้าใช้งานพอร์ตโฟลิโอ"
-      : "สมัครขอใช้งานระบบเรียบร้อยแล้ว! กรุณารอผู้ดูแลระบบประเมินอนุมัติสิทธิ์ (สามารถใช้สิทธิ์ทดลองเข้าใช้งานจำลองได้ผ่านหน้าระบบแอดมิน)",
+    message: determinedRole === "director"
+      ? "สมัครล็อกอินสังกัดในตำแหน่งผู้อำนวยการโรงเรียนสำเร็จ! กรุณารอแอดมินหรือผู้ดูแลระบบประเมินอนุมัติสิทธิ์เข้าใช้งาน"
+      : (schoolSmissCode 
+        ? "สมัครเข้าใช้งานร่วมกับเครือข่ายโรงเรียนเรียบร้อยแล้ว! กรุณารอแอดมินโรงเรียนของคุณอนุมัติสิทธิ์การเข้าใช้งานพอร์ตโฟลิโอ"
+        : "สมัครขอใช้งานระบบเรียบร้อยแล้ว! กรุณารอผู้ดูแลระบบประเมินอนุมัติสิทธิ์"),
     teacher: newTeacher
   });
 });
@@ -1130,9 +1165,9 @@ pause
 
 // POST /api/schools/register
 app.post("/api/schools/register", (req, res) => {
-  const { smissCode, schoolName, affiliation, adminName, adminEmail, adminPhone, slug, position, academicYear } = req.body;
+  const { smissCode, schoolName, affiliation, adminName, adminEmail, adminPhone, slug, position, academicYear, idCard } = req.body;
 
-  if (!smissCode || !schoolName || !adminName || !adminEmail || !slug) {
+  if (!smissCode || !schoolName || !adminName || !adminEmail || !slug || !idCard) {
     return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
   }
 
@@ -1141,9 +1176,20 @@ app.post("/api/schools/register", (req, res) => {
     return res.status(400).json({ success: false, message: "รหัส SMISS ต้องเป็นตัวเลข 8 หลักเท่านั้น" });
   }
 
+  // Validate ID card
+  if (!/^\d{13}$/.test(idCard)) {
+    return res.status(400).json({ success: false, message: "หมายเลขประจำตัวประชาชน ต้องระบุตัวเลข 13 หลัก" });
+  }
+
   // Check if school already exists
   if (localDB.schools && localDB.schools[smissCode]) {
     return res.status(400).json({ success: false, message: "รหัส SMISS 8 หลักนี้ ถูกใช้ลงทะเบียนในระบบเรียบร้อยแล้ว" });
+  }
+
+  // Check if idCard already registered as username or idCard
+  const idExists = Object.values(localDB.teachers).some(t => t.idCard === idCard || t.username === idCard);
+  if (idExists) {
+    return res.status(400).json({ success: false, message: "หมายเลขประจำตัวประชาชนนี้ มีบัญชีลงทะเบียนทำงานในระบบอยู่แล้ว" });
   }
 
   // Check if email already registered
@@ -1181,7 +1227,11 @@ app.post("/api/schools/register", (req, res) => {
     status: "pending", // Pending school approval
     dateCreated: new Date().toISOString(),
     role: "school_admin",
-    schoolSmissCode: smissCode
+    schoolSmissCode: smissCode,
+    idCard: idCard,
+    username: idCard,
+    password: "123456",
+    mustChangePassword: true
   };
 
   // Ensure schools object exists
@@ -1204,7 +1254,7 @@ app.post("/api/schools/register", (req, res) => {
 
   return res.json({
     success: true,
-    message: "ส่งคำขอจัดตั้งระบบโรงเรียนและสมัครครูดูแล (School Admin) เรียบร้อยแล้ว! กรุณารอ Super Admin อนุมัติสิทธิ์จัดตั้งโรงเรียนจึงจะสามารถเข้าใช้งานได้",
+    message: "ส่งคำขอจัดตั้งระบบโรงเรียนและสมัครครูดูแล (School Admin) เรียบร้อยแล้ว! รหัสผู้ใช้เข้าสู่ระบบคือหมายเลขประจำตัวประชาชน รหัสผ่านเริ่มต้นคือ 123456 (กรุณารอ Super Admin อนุมัติสิทธิ์จึงจะล็อกอินได้)",
     school: newSchool,
     admin: newAdminTeacher
   });
@@ -1319,6 +1369,79 @@ app.post("/api/school/committee", (req, res) => {
     success: true,
     message: "บันทึกตั้งค่าโครงสร้างโรงเรียนและตั้งค่าระบบ Google Drive สำเร็จแล้ว",
     school
+  });
+});
+
+
+// POST /api/teachers/change-password (Called by Teacher to update password)
+app.post("/api/teachers/change-password", (req, res) => {
+  const { teacherId, newPassword } = req.body;
+  if (!teacherId || !newPassword) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุรหัสครู และรหัสผ่านใหม่" });
+  }
+
+  const teacher = Object.values(localDB.teachers).find(t => t.id === teacherId);
+  if (!teacher) {
+    return res.status(404).json({ success: false, message: "ไม่พบรายชื่อครูคนประเมินในระบบ" });
+  }
+
+  // Update password & remove mandatory flag
+  teacher.password = newPassword;
+  teacher.mustChangePassword = false;
+
+  // Sync back to localDB structure in both maps
+  if (localDB.teacherDataList[teacherId]) {
+    localDB.teacherDataList[teacherId].teacher.password = newPassword;
+    localDB.teacherDataList[teacherId].teacher.mustChangePassword = false;
+  }
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "เปลี่ยนรหัสผ่านเพื่อความมั่นคงปลอดภัยสำเร็จแล้ว",
+    teacher
+  });
+});
+
+
+// POST /api/admin/teachers/set-school-admin (Called by Super Admin to designate a school admin)
+app.post("/api/admin/teachers/set-school-admin", (req, res) => {
+  const { teacherId, smissCode, makeAdmin } = req.body;
+
+  if (!teacherId || !smissCode) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุรหัสครู และรหัส SMISS โรงเรียน" });
+  }
+
+  const teacher = Object.values(localDB.teachers).find(t => t.id === teacherId);
+  if (!teacher) {
+    return res.status(404).json({ success: false, message: "ไม่พบรายชื่อครูคนดังกล่าวในฐานข้อมูล" });
+  }
+
+  if (teacher.schoolSmissCode !== smissCode) {
+    return res.status(400).json({ success: false, message: "ครูท่านนี้ไม่ได้อยู่ในรหัสโรงเรียน SMISS ที่เลือกระบุ" });
+  }
+
+  // Update role
+  teacher.role = makeAdmin ? "school_admin" : "teacher";
+  
+  if (localDB.teacherDataList[teacher.id]) {
+    localDB.teacherDataList[teacher.id].teacher.role = teacher.role;
+  }
+
+  // Also update school admin designation if designated as school admin
+  if (makeAdmin) {
+    if (localDB.schools && localDB.schools[smissCode]) {
+      localDB.schools[smissCode].adminTeacherId = teacherId;
+    }
+  }
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: `ตั้งค่าบทบาทของคุณครู ${teacher.name} เป็น ${makeAdmin ? "School Admin (แอดมินโรงเรียน)" : "Teacher (ครูผู้ใช้งานตามปกติ)"} เรียบร้อยแล้ว`,
+    teacher
   });
 });
 

@@ -18,8 +18,12 @@ export interface Teacher {
   headerImage?: string; // base64 / URL สำหรับแบนเนอร์เฮดเดอร์
   avatarImage?: string; // base64 / URL สำหรับรูปประจำตัวผู้ยื่นประเมิน
   themeColor?: string; // ธีมสี ตกแต่งอย่างสวยงาม (เช่น blue, green, violet, gold, slate, rose)
-  role?: 'teacher' | 'school_admin'; // บทบาท (ครูทั่วไป หรือ แอดมินโรงเรียน)
+  role?: 'teacher' | 'school_admin' | 'director'; // บทบาท (ครูทั่วไป, แอดมินโรงเรียน, หรือผู้อำนวยการโรงเรียน)
   schoolSmissCode?: string; // รหัส SMISS 8 หลัก ของโรงเรียนที่สังกัด
+  idCard?: string; // หมายเลขประจำตัวประชาชน 13 หลัก
+  username?: string; // ชื่อผู้ใช้งาน (ใช้หมายเลขประจำตัวประชาชน)
+  password?: string; // รหัสผ่าน (สมัครครั้งแรกเป็น 1-6)
+  mustChangePassword?: boolean; // บังคับเปลี่ยนรหัสผ่านในการเข้าใช้งานครั้งแรก
 }
 
 export interface School {

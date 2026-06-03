@@ -26,6 +26,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
   const [regAffiliation, setRegAffiliation] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regSlug, setRegSlug] = useState("");
+  const [regIdCard, setRegIdCard] = useState("");
   const [regAcademicYear, setRegAcademicYear] = useState("2569");
   const [schoolSmissCode, setSchoolSmissCode] = useState("");
   const [detectedSchoolName, setDetectedSchoolName] = useState("");
@@ -143,6 +144,12 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
     setMessage(null);
     setIsLoading(true);
 
+    if (!regIdCard || regIdCard.trim().length !== 13) {
+      setMessage({ type: "error", text: "กรุณาระบุหมายเลขประจำตัวประชาชนให้ครบถ้วน 13 หลักเพื่อใช้เป็นรหัสประจำตัว (Username) ในการเข้าสู่ระบบ" });
+      setIsLoading(false);
+      return;
+    }
+
     if (regType === "school") {
       if (!regSchoolSmissCode.trim() || !regSchoolName.trim() || !regName.trim() || !regEmail.trim() || !regSlug.trim()) {
         setMessage({ type: "error", text: "กรุณาระบุข้อมูลที่จำเป็นสำหรับการขอจัดตั้งและครูดูแลหลัก (School Admin) ให้ครบถ้วน" });
@@ -163,7 +170,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
             adminPhone: regPhone.trim(),
             slug: regSlug.trim().toLowerCase(),
             position: regPosition,
-            academicYear: regAcademicYear
+            academicYear: regAcademicYear,
+            idCard: regIdCard.trim()
           }),
         });
 
@@ -179,11 +187,12 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
         setRegEmail("");
         setRegPhone("");
         setRegSlug("");
+        setRegIdCard("");
 
         setTimeout(() => {
           setActiveTab("login");
-          setMessage({ type: "success", text: "ส่งคำขอจัดตั้งโรงเรียนแล้ว! ครูแอดมิน (School Admin) จะสามารถล็อกอินได้หลังผู้ดูแลระบบสูงสุดอนุมัติ" });
-        }, 3000);
+          setMessage({ type: "success", text: "ส่งคำขอจัดตั้งโรงเรียนเรียบร้อยแล้ว! Username ล็อกอินคือหมายเลขประจำตัวประชาชนของคุณ โดยมีรหัสผ่านชั่วคราวเริ่มต้นคือ 123456 (รอ Super Admin อนุมัติสิทธิ์จัดตั้งโรงเรียน)" });
+        }, 3500);
       } catch (err: any) {
         setMessage({ type: "error", text: err.message });
       } finally {
@@ -209,7 +218,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
             affiliation: regAffiliation.trim(),
             phone: regPhone.trim(),
             slug: regSlug.trim().toLowerCase(),
-            academicYear: regAcademicYear
+            academicYear: regAcademicYear,
+            idCard: regIdCard.trim()
           }),
         });
 
@@ -225,15 +235,17 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
         setRegSchool("");
         setRegPhone("");
         setRegSlug("");
+        const registeredIdCard = regIdCard.trim();
+        setRegIdCard("");
 
-        // Automatically prefill login with successful email
-        setLoginEmail(regEmail);
+        // Automatically prefill login with successful ID card number
+        setLoginEmail(registeredIdCard);
         setLoginRole("teacher");
 
         setTimeout(() => {
           setActiveTab("login");
-          setMessage({ type: "success", text: "ส่งใบสมัครสมาชิกแล้ว! คุณจะเข้าสู่ระบบได้หลังจาก ครูแอดมินโรงเรียน ของคุณกดอนุมัติขอบัญชีของท่าน" });
-        }, 3000);
+          setMessage({ type: "success", text: "ส่งใบสมัครสมาชิกแล้ว! กรุณาลงชื่อใช้งานด้วย หมายเลขประจำตัวประชาชน และรหัสผ่านชั่วคราวเริ่มต้น 123456 (คุณจะเข้าใช้งานได้หลังจากแอดมินของโรงเรียนอนุมัติ)" });
+        }, 3500);
       } catch (err: any) {
         setMessage({ type: "error", text: err.message });
       } finally {
@@ -533,6 +545,22 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                       ข้อมูลสิทธิ์ส่วนบุคคล {regType === "school" ? "(แอดมินดูแลหลัก)" : "(คุณครูผู้เขียนเป้าหมาย)"}
                     </p>
 
+                    <div>
+                      <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
+                        หมายเลขประจำตัวประชาชน (13 หลัก) <span className="text-rose-500">*</span> <span className="text-slate-400 font-normal">(ใช้เป็นคุณลักษณะชื่อล็อกอิน Username และรหัสแรกเข้าคือ 1-6 อัตโนมัติ)</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={13}
+                        value={regIdCard}
+                        onChange={(e) => setRegIdCard(e.target.value.replace(/\D/g, ""))}
+                        placeholder="กรอกตัวเลข 13 หลัก เช่น 1234567890123"
+                        className="block w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans font-semibold tracking-widest text-slate-800"
+                        id="reg-idcard-input"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
@@ -592,6 +620,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                           <option value="ครูวิทยฐานะเชี่ยวชาญ">ครูวิทยฐานะเชี่ยวชาญ</option>
                           <option value="ครูวิทยฐานะเชี่ยวชาญพิเศษ">ครูวิทยฐานะเชี่ยวชาญพิเศษ</option>
                           <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
+                          <option value="ผู้อำนวยการโรงเรียน">ผู้อำนวยการโรงเรียน</option>
                         </select>
                       </div>
 
