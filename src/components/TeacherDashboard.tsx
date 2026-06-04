@@ -497,8 +497,10 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
       // If it's an image, we still want to compress it for efficiency
       if (file.type.startsWith("image/")) {
-        const img = new Image();
+        console.log("Image detected, starting compression...");
+        const img = document.createElement("img");
         img.onload = () => {
+          console.log("Image loaded on canvas, resizing...");
           const canvas = document.createElement("canvas");
           const MAX_WIDTH = 1000;
           const MAX_HEIGHT = 800;
@@ -529,9 +531,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         };
         img.src = result;
       } else {
+        console.log("Non-image file detected (e.g. PDF), saving raw base64");
         // For PDF or other files, just save the raw base64
         setUploadFileBase64(result);
       }
+    };
+    reader.onerror = (err) => {
+      console.error("FileReader error:", err);
+      triggerToast("error", "ไม่สามารถอ่านไฟล์ได้");
     };
     reader.readAsDataURL(file);
   };
@@ -584,6 +591,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           contentType: uploadFileType || "application/octet-stream"
         };
 
+        console.log(`[Upload] Sending to proxy: ${newLinkName.trim()} (${uploadFileType})`);
+        
         // Call our Server Proxy to handle the upload to GAS (FIXES CORS)
         const uploadRes = await fetch("/api/proxy-gas", {
           method: "POST",
@@ -595,6 +604,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         });
 
         const uploadData = await uploadRes.json();
+        console.log("[Upload] Proxy Response:", uploadData);
         
         if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
           finalUrl = uploadData.url || uploadData.fileUrl;
@@ -732,6 +742,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           contentType: uploadFileType || "application/octet-stream"
         };
 
+        console.log(`[Challenge Upload] Sending to proxy: ${newLinkName.trim()} (${uploadFileType})`);
+
         // Call our Server Proxy to handle the upload to GAS (FIXES CORS)
         const uploadRes = await fetch("/api/proxy-gas", {
           method: "POST",
@@ -743,6 +755,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         });
         
         const uploadData = await uploadRes.json();
+        console.log("[Challenge Upload] Proxy Response:", uploadData);
+
         if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
           finalUrl = uploadData.url || uploadData.fileUrl;
           driveFileId = uploadData.fileId;
