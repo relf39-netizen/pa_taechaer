@@ -1,169 +1,355 @@
-import React from 'react';
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
-  ArrowRight, 
-  LogIn, 
-  Bookmark,
-  Sparkles,
-  ChevronRight,
-  Users,
-  FileText,
-  Monitor
-} from 'lucide-react';
+  Award, Globe, Sparkles, LogIn, Shield, Users, School, 
+  ExternalLink, ArrowRight, CheckCircle2, ChevronRight, BookOpen
+} from "lucide-react";
+import { Teacher, TeacherData } from "./types";
+import AuthPage from "./components/AuthPage";
+import TeacherDashboard from "./components/TeacherDashboard";
+import PublicProfile from "./components/PublicProfile";
+import AdminPanel from "./components/AdminPanel";
 
 export default function App() {
+  // Navigation Routing States
+  const [currentView, setCurrentView] = useState<"home" | "auth" | "dashboard" | "admin" | "public_profile">("home");
+  const [publicSlug, setPublicSlug] = useState<string | null>(null);
+
+  // Auth States
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [activeTeacherData, setActiveTeacherData] = useState<TeacherData | null>(null);
+
+  // List of active teachers for demonstration on home page
+  const [demoTeachers, setDemoTeachers] = useState<Teacher[]>([]);
+
+  // 1. URL Query Parameter Sniffer
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pSlug = params.get("p") || params.get("slug");
+    
+    if (pSlug) {
+      setPublicSlug(pSlug);
+      setCurrentView("public_profile");
+    } else {
+      // Check for active logged in user in standard localStorage for persistency
+      const stored = localStorage.getItem("pa_user");
+      const storedData = localStorage.getItem("pa_teacher_data");
+      
+      if (stored) {
+        try {
+          const parsedUser = JSON.parse(stored);
+          setCurrentUser(parsedUser);
+          if (parsedUser.role === "admin") {
+            setCurrentView("admin");
+          } else {
+            setCurrentView("dashboard");
+            if (storedData) {
+              setActiveTeacherData(JSON.parse(storedData));
+            }
+          }
+        } catch (e) {
+          localStorage.removeItem("pa_user");
+        }
+      }
+    }
+
+    // Always fetch teacher demography for homepage list
+    fetch("/api/teachers")
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.success) {
+          setDemoTeachers(resData.teachers);
+        }
+      })
+      .catch((err) => console.error("Error loading teachers demo list:", err));
+  }, []);
+
+  const handleLoginSuccess = (user: any, data: any) => {
+    setCurrentUser(user);
+    localStorage.setItem("pa_user", JSON.stringify(user));
+    if (user.role === "admin") {
+      setCurrentView("admin");
+    } else {
+      setActiveTeacherData(data);
+      localStorage.setItem("pa_teacher_data", JSON.stringify(data));
+      setCurrentView("dashboard");
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setActiveTeacherData(null);
+    localStorage.removeItem("pa_user");
+    localStorage.removeItem("pa_teacher_data");
+    setCurrentView("home");
+    
+    // Refresh demo lists
+    fetch("/api/teachers")
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.success) {
+          setDemoTeachers(resData.teachers);
+        }
+      });
+  };
+
+  const navigateToHomeFromPublic = () => {
+    // Clean URL query parameter so we don't reload to profile
+    const newUrl = window.location.origin + window.location.pathname;
+    window.history.pushState({}, document.title, newUrl);
+    setPublicSlug(null);
+    setCurrentView("home");
+  };
+
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-800">
-      {/* Hero Section */}
-      <div className="relative bg-[#1e3a8a] overflow-hidden">
-        {/* Decorative Circle */}
-        <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 opacity-10">
-          <div className="w-[800px] h-[800px] bg-white rounded-full" />
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-6 py-16 md:py-24 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Left Column: Text & Buttons */}
-            <div className="lg:col-span-7">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#FFDB00]/10 border border-[#FFDB00]/30 rounded-full mb-10">
-                <Sparkles size={16} className="text-[#FFDB00]" />
-                <span className="text-xs font-bold text-[#FFDB00] uppercase tracking-widest">
-                  สพฐ. PERFORMANCE AGREEMENT (PA)
-                </span>
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-7xl font-black text-white leading-tight mb-8">
-                ระบบบันทึกผลการประเมิน<br />
-                <span className="text-[#FFDB00]">ข้อตกลงในการพัฒนางาน (PA)</span><br />
-                ของข้าราชการครู
-              </h1>
-              
-              <p className="text-lg md:text-xl text-blue-100/80 leading-relaxed mb-12 max-w-2xl font-medium">
-                เครื่องมือบันทึกความก้าวหน้าตามเกณฑ์ตัวชี้วัด 3 ด้าน (15 ตัวชี้วัดมาตรฐานและแบบประเมินประเด็นท้าทาย) 
-                สำหรับข้าราชการครูกระทรวงศึกษาธิการ เพื่อสร้างพอร์ตสะสมผลงานอิงอัตโนมัติจัดส่งแก่คณะกรรมการประเมิน
-              </p>
-              
-              <div className="flex flex-wrap gap-5">
-                <button className="px-8 py-5 bg-[#FFDB00] hover:bg-[#ffe533] text-slate-900 rounded-xl font-black flex items-center gap-3 shadow-2xl shadow-yellow-500/20 transition-all transform hover:-translate-y-1">
-                  สมัครขอลิงก์ใช้งานใหม่ 
-                  <ArrowRight size={20} />
-                </button>
-                <button className="px-8 py-5 bg-transparent border-2 border-white/20 hover:border-white/50 text-white rounded-xl font-black flex items-center gap-3 transition-all backdrop-blur-sm">
-                  <LogIn size={20} />
-                  เข้าสู่ระบบบันทึก (แก้ไขข้อมูล)
-                </button>
-              </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased selection:bg-amber-100">
+      
+      {/* 1. PUBLIC PROFILE LAYER */}
+      {currentView === "public_profile" && publicSlug && (
+        <PublicProfile 
+          slug={publicSlug} 
+          onBackToSystem={navigateToHomeFromPublic} 
+          onLoginToEdit={() => {
+            const newUrl = window.location.origin + window.location.pathname;
+            window.history.pushState({}, document.title, newUrl);
+            setPublicSlug(null);
+            setCurrentView("auth");
+          }}
+        />
+      )}
+
+      {/* 2. SECURITY AUTH LAYER */}
+      {currentView === "auth" && (
+        <AuthPage 
+          onLoginSuccess={handleLoginSuccess} 
+          onNavigateHome={() => setCurrentView("home")} 
+        />
+      )}
+
+      {/* 3. ACTIVE TEACHER WORK STATION PANEL */}
+      {currentView === "dashboard" && activeTeacherData && (
+        <TeacherDashboard 
+          initialData={activeTeacherData} 
+          onLogout={handleLogout} 
+        />
+      )}
+
+      {/* 4. ACTIVE CENTRAL ADMINISTRATION PANEL */}
+      {currentView === "admin" && (
+        <AdminPanel 
+          onLogout={handleLogout} 
+        />
+      )}
+
+      {/* 5. IMMERSIVE THAI PORTAL LANDING PAGE */}
+      {currentView === "home" && (
+        <div className="flex flex-col min-h-screen bg-[#f1f5f9]">
+          
+          {/* Main Hero Header - Geometric Balance Styling with Yellow bottom border */}
+          <header className="bg-[#1e3a8a] text-white relative py-16 md:py-24 px-6 overflow-hidden border-b-4 border-b-[#facc15] shadow-md animate-fade-in">
+            <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none transform translate-y-24 translate-x-12">
+              <Award className="w-[600px] h-[600px] text-white" />
             </div>
 
-            {/* Right Column: Teacher Directory Card */}
-            <div className="lg:col-span-5">
-              <div className="bg-[#0f172a]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-                {/* Decorative background glow */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full blur-[100px] opacity-20" />
+            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-20">
+              
+              {/* Product value statement */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="inline-flex items-center gap-1.5 bg-[#facc15]/10 text-[#facc15] px-3.5 py-1 rounded-full text-xs font-semibold border border-[#facc15]/30">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  สพฐ. PERFORMANCE AGREEMENT (PA)
+                </div>
                 
-                <div className="relative z-10">
-                  <div className="flex items-start gap-5 mb-10">
-                    <div className="w-14 h-14 rounded-2xl bg-[#FFDB00]/10 flex items-center justify-center flex-shrink-0">
-                      <Users className="text-[#FFDB00]" size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-2">รายชื่อคุณครูที่พร้อมรับการตรวจประเมิน</h3>
-                      <p className="text-sm text-slate-400 font-medium leading-relaxed">คณกรรมการของสพฐ.หรือโรงเรียน สามารถคลิกอ้างอิงชื่อเพื่อเข้าตรวจสอบข้อมูลและหลักฐานตัวชี้วัดได้ทันที</p>
-                    </div>
-                  </div>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight text-white mb-2">
+                  ระบบบันทึกผลการประเมิน <br />
+                  <span className="text-[#facc15]">ข้อตกลงในการพัฒนางาน (PA)</span> <br />
+                  ของข้าราชการครู
+                </h1>
+                
+                <p className="text-blue-100 text-sm md:text-base leading-relaxed max-w-2xl">
+                  เครื่องมือบันทึกความก้าวหน้าตามเกณฑ์ตัวชี้วัด 3 ด้าน (15 ตัวชี้วัดมาตรฐานและแบบประเมินประเด็นท้าทาย) สำหรับข้าราชการครูกระทรวงศึกษาธิการ เพื่อสร้างพอร์ตสะสมผลงานอิงลิงก์อัตโนมัติจัดส่งแก่คณะกรรมการประเมิน
+                </p>
 
-                  <div className="space-y-4 mb-12">
-                    <TeacherEntry 
-                      name="ครูมานะ รักการสอน" 
-                      school="โรงเรียนบ้านหนองหว้า" 
-                      slug="/mana-samsen" 
-                    />
-                    <div className="h-px bg-white/5 mx-2" />
-                    <TeacherEntry 
-                      name="นายสยาม เชียงเครือ" 
-                      school="โรงเรียนบ้านหนองหว้า" 
-                      slug="/siam" 
-                    />
-                  </div>
-
-                  <div className="pt-8 border-t border-white/10 flex items-center justify-between">
-                    <div className="flex flex-col">
-                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">ผู้จัดทำ:</span>
-                       <span className="text-xs font-bold text-white/90">คณะทำงานโรงเรียนข้าราชการยืดสมรรถนะ</span>
-                    </div>
-                    <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
-                      <Bookmark className="text-[#FFDB00]" size={18} />
-                    </div>
-                  </div>
+                <div className="flex flex-wrap gap-3.5 pt-2">
+                  <button
+                    onClick={() => setCurrentView("auth")}
+                    className="flex items-center gap-2 px-6 py-3 bg-[#facc15] hover:bg-[#ebd113] text-[#1e3a8a] font-bold text-sm rounded-lg cursor-pointer shadow transition-all duration-150 hover:-translate-y-0.5"
+                    id="home-register-btn"
+                  >
+                    สมัครขอลิงก์ใช้งานใหม่
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentView("auth")}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-850 hover:bg-blue-800 text-white font-bold text-sm rounded-lg cursor-pointer border border-blue-700/60 transition-all duration-150 hover:bg-blue-900/50"
+                    id="home-login-btn"
+                  >
+                    <LogIn className="w-4 h-4 text-[#facc15]" />
+                    เข้าสู่ระบบบันทึก (แก้ไขข้อมูล)
+                  </button>
                 </div>
               </div>
+
+              {/* Quick interactive lookup dashboard preview of active links */}
+              <div className="lg:col-span-5 bg-[#172554] border border-blue-950/65 p-6 md:p-8 rounded-lg shadow-xl flex flex-col justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wider mb-2">
+                    <Users className="w-5 h-5 text-[#facc15]" />
+                    รายชื่อคุณครูที่พร้อมรับการตรวจประเมิน
+                  </h3>
+                  <p className="text-xs text-blue-200 border-none leading-relaxed">
+                    คุณกรรมการของสพฐ.หรือโรงเรียน สามารถคลิกอ้างอิงชื่อลิงก์เพื่อเข้าตรวจสอบข้อมูลและหลักฐานตัวชี้วัดได้ทันที
+                  </p>
+                </div>
+
+                <div className="my-5 divide-y divide-blue-900/50 max-h-[220px] overflow-y-auto pr-1">
+                  {demoTeachers.length === 0 ? (
+                    <p className="text-xs text-blue-300 italic py-4">กำลังเตรียมรายชื่อคุณครูนำเสนอ...</p>
+                  ) : (
+                    demoTeachers.map((t) => (
+                      <div key={t.id} className="py-2.5 flex items-center justify-between text-xs border-b border-blue-900/30">
+                        <div>
+                          <strong className="text-slate-100 block">{t.name}</strong>
+                          <span className="text-[10px] text-blue-300">{t.school}</span>
+                        </div>
+                        <a 
+                          href={`/?p=${t.slug}`}
+                          className="flex items-center gap-1 font-mono text-[#facc15] hover:text-yellow-300 font-semibold hover:underline"
+                        >
+                          /{t.slug}
+                          <ChevronRight className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-blue-900 text-[11px] text-blue-200 flex justify-between items-center bg-transparent">
+                  <span>ผู้จัดทำ: คณะทำงานโรงเรียนข้าราชการยึดสมรรถนะ</span>
+                  <Award className="w-4 h-4 text-[#facc15]" />
+                </div>
+              </div>
+
+            </div>
+          </header>
+
+          {/* Guidelines Section with Feature descriptions & Demo credentials */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-12 gap-8">
+            
+            {/* Left Columns: Features / Guideline Info */}
+            <div className="md:col-span-8 space-y-8">
+              <div>
+                <h3 className="font-extrabold text-2xl text-slate-900">องค์ประกอบระบบบันทึกข้อตกลง PA</h3>
+                <p className="text-sm text-slate-500">ค่านิยมปฏิบัติงานตามหลักเกณฑ์สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (กระทรวงศึกษาธิการ)</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                
+                {/* feature 1 */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-[#e2e8f0] flex items-start gap-4 hover:shadow-md transition-shadow">
+                  <div className="bg-[#eff6ff] text-[#1e40af] p-2.5 rounded-lg">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <h4 className="font-bold text-slate-800 text-sm">การบันทึกตัวชี้วัดระดับตำแหน่ง</h4>
+                    <p className="text-slate-500 leading-relaxed">
+                      แบ่งประเภทแบบฟอร์มการประเมินออกเป็น 15 ตัวชี้วัดเชิงวิทยาศาสตร์ (3 ด้าน) มีช่องบันทึกอธิบายผลการปฏิบัติและปุ่มแนบเอกสารอย่างทันสมัย
+                    </p>
+                  </div>
+                </div>
+
+                {/* feature 2 */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-[#e2e8f0] flex items-start gap-4 hover:shadow-md transition-shadow">
+                  <div className="bg-[#eff6ff] text-[#1e40af] p-2.5 rounded-lg">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <h4 className="font-bold text-slate-800 text-sm">บันทึกประเด็นท้าทาย (ส่วนที่ 2)</h4>
+                    <p className="text-slate-500 leading-relaxed">
+                      แบบฟอร์มตั้งสมมติฐานและสภาพปัญหากลุ่มตัวอย่างนักเรียน การคำนวณเชิงปริมาณและผลสัมฤทธิ์เชิงเลขาเชิงคุณภาพสอดคล้องกับรายงานสถานศึกษา
+                    </p>
+                  </div>
+                </div>
+
+                {/* feature 3 */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-[#e2e8f0] flex items-start gap-4 hover:shadow-md transition-shadow">
+                  <div className="bg-[#eff6ff] text-[#1e40af] p-2.5 rounded-lg">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <h4 className="font-bold text-slate-800 text-sm">ลิงก์ประเมินผลสาธารณะโดยอัตโนมัติ</h4>
+                    <p className="text-slate-500 leading-relaxed">
+                      ส่งต่อลิงก์เฉพาะของคุณครูให้วิทยฐานะกรรมการผ่านโซเชียล โดยเปิดอ่านบนเว็บได้ทันทีผ่านคอมพิวเตอร์ แท็บเล็ต หรือมือถือ สวยงามรวดเร็ว
+                    </p>
+                  </div>
+                </div>
+
+                {/* feature 4 */}
+                <div className="bg-white p-5 rounded-lg shadow-sm border border-[#e2e8f0] flex items-start gap-4 hover:shadow-md transition-shadow">
+                  <div className="bg-[#eff6ff] text-[#1e40af] p-2.5 rounded-lg">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <h4 className="font-bold text-slate-800 text-sm">ส่วนควบคุมดูแลระบบแอดมิน</h4>
+                    <p className="text-slate-500 leading-relaxed">
+                      ผู้บริหารหรือแอดมินจำลองตรวจการอนุมัติสิทธิ์ พร้อมทั้งรวบรวมพิมพ์หรือสกรีนสคริปต์สำรองข้อมูล MySQL ไปใช้จริงในเครือข่ายสถานศึกษา
+                    </p>
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-          </div>
-        </div>
-      </div>
+            {/* Right Column: Demo credential details - styled elegant white card with blue accent border-l-4 */}
+            <div className="md:col-span-4 bg-white text-slate-800 p-6 rounded-lg shadow-sm border border-[#e2e8f0] border-l-4 border-l-[#1e3a8a] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-[#1e40af]" />
+                  <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wider leading-none">ทดสอบสิทธิ์สาธิต</h4>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  ผู้มาทดสอบระบบสามารถใช้ความลื่นไหลด้วยสิทธิ์บัญชีคุณครูและดูแลระบบแนะนําดังนี้ เพื่อประหยัดเวลาการประเมิน:
+                </p>
 
-      {/* Components Section */}
-      <div className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-           <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
-              <div>
-                <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-4">องค์ประกอบระบบบันทึกข้อตกลง PA</h2>
-                <p className="text-slate-500 font-medium max-w-xl">รวบรวมทุกขั้นตอนการพัฒนางานตามมาตรฐานตำแหน่งและวิทยฐานะไว้ในที่เดียว</p>
+                <div className="p-3 bg-slate-50 rounded-lg space-y-2 border border-[#e2e8f0] text-xs">
+                  <span className="font-bold text-[#1e40af] block border-b border-[#e2e8f0] pb-1">สำหรับเข้าแก้ไขข้อมูลครู (Teacher)</span>
+                  <p className="font-mono text-[11px] leading-relaxed text-slate-600">
+                    อีเมล: <span className="underline select-all text-slate-900 font-semibold">mana@samsen.ac.th</span> <br />
+                    รหัสผ่าน: <span className="text-slate-900 font-medium">อะไรก็ได้</span> (เช่น 1234)
+                  </p>
+                  <p className="font-mono text-[11px] leading-relaxed mt-1 text-slate-600">
+                    อีเมล: <span className="underline select-all text-slate-900 font-semibold">piti@triamudom.ac.th</span> <br />
+                    รหัสผ่าน: <span className="text-slate-900 font-medium">อะไรก็ได้</span>
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-lg space-y-2 border border-[#e2e8f0] text-xs">
+                  <span className="font-bold text-[#1e40af] block border-b border-[#e2e8f0] pb-1">สำหรับผู้ดูแลควบคุมสถานศึกษา (Admin)</span>
+                  <p className="font-mono text-[11px] leading-relaxed text-slate-600">
+                    ชื่อผู้ใช้: <span className="underline select-all text-slate-900 font-semibold">admin</span> <br />
+                    รหัสผ่าน: <span className="underline select-all text-slate-900 font-semibold">admin123</span>
+                  </p>
+                </div>
               </div>
-              <div className="h-1 flex-1 bg-slate-100 rounded-full hidden md:block mb-4 ml-12" />
-           </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <FeatureBox 
-                 title="มาตรฐานตำแหน่ง" 
-                 description="บันทึกผลการปฏิบัติงานตาม 3 ด้าน 15 ตัวชี้วัดมาตรฐานครู ครอบคลุมการจัดการเรียนรู้ การส่งเสริม และการพัฒนาตนเอง" 
-                 icon={<FileText className="text-blue-600" size={32} />}
-              />
-              <FeatureBox 
-                 title="ประเด็นท้าทาย" 
-                 description="กำหนดเป้าหมายและผลลัพธ์การเรียนรู้ของผู้เรียน (KPI) ตามระดับวิทยฐานะที่คาดหวัง สอดคล้องกับบริบทห้องเรียน" 
-                 icon={<Sparkles className="text-blue-600" size={32} />}
-              />
-              <FeatureBox 
-                 title="แฟ้มสะสมงานดิจิทัล" 
-                 description="ระบบอ้างอิงหลักฐาน ร่องรอย และคลิปวิดีโอการสอนอัตโนมัติ เพื่อความสะดวกในการตรวจประเมินแบบออนไลน์" 
-                 icon={<Monitor className="text-blue-600" size={32} />}
-              />
-           </div>
+              <div className="pt-4 mt-4 border-t border-slate-100 text-[10px] text-slate-400">
+                ระบบจัดการระดับคุณครู สพฐ. พัฒนาถูกต้องด้วยโครงสร้างฟังก์ชั่น 100%
+              </div>
+            </div>
+
+          </main>
+
+          {/* Footer of the Portal app - Navy elegant */}
+          <footer className="bg-slate-900 text-white py-8 border-t border-slate-800 text-center text-xs">
+            <div className="max-w-7xl mx-auto px-6 space-y-1">
+              <p>&copy; ระบบแฟ้มสะสมข้อตกลงในการพัฒนางาน (PA) ข้าราชการครู สพฐ.</p>
+              <p className="text-slate-400 text-[10px]">สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ ประเทศไทย</p>
+            </div>
+          </footer>
+
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
-
-function TeacherEntry({ name, school, slug }: { name: string, school: string, slug: string }) {
-  return (
-    <div className="flex items-center justify-between group cursor-pointer p-2 hover:bg-white/5 rounded-2xl transition-all">
-      <div>
-        <div className="text-base font-bold text-white group-hover:text-[#FFDB00] transition-colors">{name}</div>
-        <div className="text-xs text-slate-500 font-medium mt-0.5">{school}</div>
-      </div>
-      <div className="flex items-center gap-1 text-[11px] font-bold text-[#FFDB00]/60 group-hover:text-[#FFDB00] transition-all">
-        {slug}
-        <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-      </div>
-    </div>
-  );
-}
-
-function FeatureBox({ title, description, icon }: { title: string, description: string, icon: React.ReactNode }) {
-  return (
-    <div className="p-10 bg-slate-50 border border-slate-100 rounded-[2.5rem] hover:bg-white hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 group">
-      <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-8 border border-slate-100 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-500">
-        {icon}
-      </div>
-      <h4 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">{title}</h4>
-      <p className="text-slate-500 text-base leading-relaxed font-medium">{description}</p>
-    </div>
-  );
-}
-
-
-

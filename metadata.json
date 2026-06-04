@@ -1,8 +1,6 @@
 {
-  "name": "Thai Teacher PA Portfolio",
-  "description": "ระบบบันทึกข้อตกลงในการพัฒนางาน (PA) และแฟ้มสะสมผลงานอิเล็กทรอนิกส์สำหรับข้าราชการครู",
+  "name": "ระบบบันทึกข้อตกลงในการพัฒนางาน (PA) ของข้าราชการครู",
+  "description": "ระบบบันทึกผลการปฏิบัติงานตามข้อตกลงในการพัฒนางาน (PA) ของข้าราชการครู สพฐ. เพื่อบันทึกตัวชี้วัดและเผยแพร่ลิงก์ให้คณะกรรมการประเมิน",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
