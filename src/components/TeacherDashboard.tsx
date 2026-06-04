@@ -444,17 +444,20 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           teacher: responseData.teacher
         };
 
-        // Auto Sync back up to Google Drive in background if configured!
+        // Auto Sync back up to Google Drive via Proxy (FIXES CORS)
         if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
-          fetch(schoolDriveConfig.gasWebUrl, {
+          fetch("/api/proxy-gas", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              action: "saveTeacherData",
-              folderId: schoolDriveConfig.driveFolderId,
-              teacherId: data.teacher.id,
-              teacherName: responseData.teacher.name,
-              data: updated
+              gasUrl: schoolDriveConfig.gasWebUrl,
+              payload: {
+                action: "saveTeacherData",
+                folderId: schoolDriveConfig.driveFolderId,
+                teacherId: data.teacher.id,
+                teacherName: responseData.teacher.name,
+                data: updated
+              }
             })
           }).then(() => console.log("Google Drive profile background backup completed!"))
             .catch(e => console.warn("Google Drive profile background backup failed:", e));
@@ -648,19 +651,22 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         const copy = { ...prev.indicators };
         copy[selectedIndId] = responseData.indicator;
         
-        // Auto Sync back up to Google Drive in background if configured!
+        // Auto Sync back up to Google Drive via Proxy (FIXES CORS)
         if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
-          fetch(schoolDriveConfig.gasWebUrl, {
+          fetch("/api/proxy-gas", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              action: "saveTeacherData",
-              folderId: schoolDriveConfig.driveFolderId,
-              teacherId: data.teacher.id,
-              teacherName: data.teacher.name,
-              data: {
-                ...prev,
-                indicators: copy
+              gasUrl: schoolDriveConfig.gasWebUrl,
+              payload: {
+                action: "saveTeacherData",
+                folderId: schoolDriveConfig.driveFolderId,
+                teacherId: data.teacher.id,
+                teacherName: data.teacher.name,
+                data: {
+                  ...prev,
+                  indicators: copy
+                }
               }
             })
           }).then(() => console.log("Google Drive background backup completed!"))
@@ -797,17 +803,20 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           challenge: responseData.challenge
         };
 
-        // Auto Sync back up to Google Drive in background if configured!
+        // Auto Sync back up to Google Drive via Proxy (FIXES CORS)
         if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
-          fetch(schoolDriveConfig.gasWebUrl, {
+          fetch("/api/proxy-gas", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              action: "saveTeacherData",
-              folderId: schoolDriveConfig.driveFolderId,
-              teacherId: data.teacher.id,
-              teacherName: data.teacher.name,
-              data: updated
+              gasUrl: schoolDriveConfig.gasWebUrl,
+              payload: {
+                action: "saveTeacherData",
+                folderId: schoolDriveConfig.driveFolderId,
+                teacherId: data.teacher.id,
+                teacherName: data.teacher.name,
+                data: updated
+              }
             })
           }).then(() => console.log("Google Drive challenge background backup completed!"))
             .catch(e => console.warn("Google Drive challenge background backup failed:", e));

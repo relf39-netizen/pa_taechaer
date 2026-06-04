@@ -63,7 +63,7 @@ const DB_FILE_PATH = getWriteableDbPath();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// PROXY ROUTE FOR GOOGLE APPS SCRIPT (FIXES CORS)
+// PROXY ROUTE FOR GOOGLE APPS SCRIPT (FIXES CORS & REDIRECTS)
 app.post("/api/proxy-gas", async (req, res) => {
   try {
     const { gasUrl, payload } = req.body;
@@ -72,17 +72,30 @@ app.post("/api/proxy-gas", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing Google Apps Script URL" });
     }
 
+    console.log(`[GAS Proxy] Attempting upload to: ${gasUrl}`);
+
     const response = await fetch(gasUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[GAS Proxy] Google responded with status ${response.status}:`, errorText);
+      return res.status(response.status).json({ success: false, error: `Google Drive Error (${response.status})` });
+    }
+
     const data = await response.json();
+    console.log("[GAS Proxy] Response from Google:", data);
     res.json(data);
   } catch (error: any) {
-    console.error("GAS Proxy Error:", error);
-    res.status(500).json({ success: false, error: "Failed to connect to Google Drive: " + error.message });
+    console.error("[GAS Proxy] Critical Error:", error);
+    res.status(500).json({ success: false, error: "ระบบ Proxy ไม่สามารถติดต่อ Google Drive ได้: " + error.message });
   }
 });
 

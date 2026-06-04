@@ -26,8 +26,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [copiedGas, setCopiedGas] = useState(false);
 
   const gasCode = `/**
- * Google Apps Script for School File Storage Integration
- * สำหรับรับไฟล์จากระบบ PA School และบันทึกใน Google Drive
+ * Google Apps Script for School File Storage Integration (VERSION 2.0 - PROXY OPTIMIZED)
+ * อัปเดตล่าสุด: ${new Date().toLocaleDateString('th-TH')}
  */
 
 function doPost(e) {
@@ -43,27 +43,36 @@ function doPost(e) {
     var fileData = payload.fileData; 
     var contentType = payload.contentType;
 
+    // ตรวจสอบความถูกต้องของข้อมูล
+    if (!folderId || !fileData) {
+      throw new Error("Missing required parameters: folderId or fileData");
+    }
+
     var folder = DriveApp.getFolderById(folderId);
     var decodedData = Utilities.base64Decode(fileData);
     var blob = Utilities.newBlob(decodedData, contentType, fileName);
     var file = folder.createFile(blob);
 
+    // ปรับสิทธิ์ไฟล์ให้ทุกคนที่มีลิงก์เข้าถึงได้ (เพื่อแสดงผลในหน้าเว็บ)
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
     return JSON_RESPONSE({
       success: true,
       fileId: file.getId(),
-      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId()
+      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
+      message: "File uploaded and shared successfully (v2.0)"
     });
 
   } catch (error) {
     return JSON_RESPONSE({
       success: false,
-      error: error.toString()
+      error: "GAS Error: " + error.toString()
     });
   }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Service is Online.")
+  return ContentService.createTextOutput("School Drive Connectivity Service v2.0 - Active")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
@@ -761,13 +770,15 @@ function doGet(e) {
                   </div>
                 </div>
 
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-2">
+                <div className="p-4 bg-rose-50 rounded-xl border border-rose-100 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Cloud className="w-4 h-4 text-amber-600" />
-                    <span className="font-bold text-amber-900">ข้อแนะนำสำหรับแอดมิน:</span>
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                    <span className="font-bold text-rose-900">ข้อควรระวังสำคัญ (สำคัญมาก):</span>
                   </div>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    โรงเรียนควรใช้ Gmail บัญชีกลางของโรงเรียนเพื่อความต่อเนื่องในการจัดเก็บ และควรสร้างโฟลเดอร์แยกไว้สำหรับบันทึกงานโดยเฉพาะ
+                  <p className="text-[11px] text-rose-800 leading-relaxed">
+                    ๑. เมื่อคุณแก้ไขโค้ดต้องกด <strong>"Deploy &gt; New Deployment"</strong> เท่านั้น (การแก้ไขในจุดเดิมจะไม่ทำงาน)<br />
+                    ๒. การตั้งค่าสิทธิ์ <strong>"Who has access"</strong> ต้องเลือกเป็น <strong>"Anyone"</strong> เท่านั้น<br />
+                    ๓. หากหน้าจอค้างโค้ดเดิม ให้กด <strong>Ctrl + F5</strong> เพื่อรีเฟรชเบราว์เซอร์
                   </p>
                 </div>
               </div>
