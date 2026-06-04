@@ -26,7 +26,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [copiedGas, setCopiedGas] = useState(false);
 
   const gasCode = `/**
- * Google Apps Script for School File Storage Integration (VERSION 2.0 - PROXY OPTIMIZED)
+ * Google Apps Script for School File Storage Integration (VERSION 2.5 - MULTI-ACTION)
+ * รองรับ: อัปโหลดไฟล์ (PDF/Image) และการสำรองโครงการ (JSON)
  * อัปเดตล่าสุด: ${new Date().toLocaleDateString('th-TH')}
  */
 
@@ -37,42 +38,74 @@ function doPost(e) {
   };
 
   try {
-    var payload = JSON.parse(e.postData.contents);
-    var folderId = payload.folderId; 
-    var fileName = payload.fileName;
-    var fileData = payload.fileData; 
-    var contentType = payload.contentType;
+    var requestData = JSON.parse(e.postData.contents);
+    var action = requestData.action;
+    var folderId = requestData.folderId;
+    
+    if (!folderId) throw new Error("Missing required parameter: folderId");
+    var parentFolder = DriveApp.getFolderById(folderId);
 
-    // ตรวจสอบความถูกต้องของข้อมูล
-    if (!folderId || !fileData) {
-      throw new Error("Missing required parameters: folderId or fileData");
+    // 1. ACTION: UPLOAD FILE / IMAGE (Generic)
+    if (action === "uploadFile" || action === "uploadImage") {
+      var teacherId = requestData.teacherId;
+      var fileName = requestData.fileName || ("file_" + Date.now());
+      var fileBytes = Utilities.base64Decode(requestData.fileData || (requestData.imageBase64 ? requestData.imageBase64.split(",")[1] : ""));
+      var contentType = requestData.contentType || requestData.mimeType || "application/octet-stream";
+      
+      if (!fileBytes || fileBytes.length === 0) throw new Error("No file bytes received");
+
+      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
+      var blob = Utilities.newBlob(fileBytes, contentType, fileName);
+      var file = teacherFolder.createFile(blob);
+      
+      // Share file so it can be viewed on the web
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      
+      return JSON_RESPONSE({
+        success: true,
+        fileId: file.getId(),
+        fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
+        url: "https://lh3.googleusercontent.com/d/" + file.getId() // For backward compatibility
+      });
+    }
+    
+    // 2. ACTION: SAVE TEACHER DATA (JSON BACKUP)
+    if (action === "saveTeacherData") {
+      var teacherId = requestData.teacherId;
+      var teacherName = requestData.teacherName || "Teacher";
+      var portfolioContent = JSON.stringify(requestData.data, null, 2);
+      
+      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
+      var backupFileName = "pa_portfolio_backup_" + teacherId + ".json";
+      
+      var files = teacherFolder.getFilesByName(backupFileName);
+      if (files.hasNext()) {
+        files.next().setContent(portfolioContent);
+      } else {
+        teacherFolder.createFile(backupFileName, portfolioContent, "application/json");
+      }
+      
+      return JSON_RESPONSE({ 
+        success: true, 
+        message: "Backup completed for " + teacherName 
+      });
     }
 
-    var folder = DriveApp.getFolderById(folderId);
-    var decodedData = Utilities.base64Decode(fileData);
-    var blob = Utilities.newBlob(decodedData, contentType, fileName);
-    var file = folder.createFile(blob);
-
-    // ปรับสิทธิ์ไฟล์ให้ทุกคนที่มีลิงก์เข้าถึงได้ (เพื่อแสดงผลในหน้าเว็บ)
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    return JSON_RESPONSE({
-      success: true,
-      fileId: file.getId(),
-      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
-      message: "File uploaded and shared successfully (v2.0)"
-    });
+    return JSON_RESPONSE({ success: false, error: "Action '" + action + "' not recognized by App Script." });
 
   } catch (error) {
-    return JSON_RESPONSE({
-      success: false,
-      error: "GAS Error: " + error.toString()
-    });
+    return JSON_RESPONSE({ success: false, error: "GAS Error: " + error.toString() });
   }
 }
 
+function getOrCreateSubFolder(parent, name) {
+  var subFolders = parent.getFoldersByName(name);
+  if (subFolders.hasNext()) return subFolders.next();
+  return parent.createFolder(name);
+}
+
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity Service v2.0 - Active")
+  return ContentService.createTextOutput("School Drive Connectivity Service v2.5 - Online & Active")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
