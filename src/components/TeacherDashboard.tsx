@@ -934,7 +934,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                 ดูตัวอย่างหน้าคณะกรรมการ (Live)
               </button>
 
-              {data.teacher.role === "school_admin" && (
+              {(data.teacher.role === "school_admin" || data.teacher.role === "director") && (
                 <button
                   onClick={() => setActiveMenu("school_manage")}
                   className={`w-full text-left px-4 py-2.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 border-none cursor-pointer ${activeMenu === "school_manage" ? "bg-amber-100 text-amber-900 border-l-4 border-l-amber-500 font-semibold" : "text-amber-800 hover:bg-amber-50/60"}`}

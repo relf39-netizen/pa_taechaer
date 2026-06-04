@@ -1423,7 +1423,7 @@ app.post("/api/admin/teachers/set-school-admin", (req, res) => {
   }
 
   // Update role
-  teacher.role = makeAdmin ? "school_admin" : "teacher";
+  teacher.role = makeAdmin ? "school_admin" : (teacher.position === "ผู้อำนวยการโรงเรียน" ? "director" : "teacher");
   
   if (localDB.teacherDataList[teacher.id]) {
     localDB.teacherDataList[teacher.id].teacher.role = teacher.role;

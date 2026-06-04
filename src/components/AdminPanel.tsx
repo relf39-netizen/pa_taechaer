@@ -15,6 +15,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [schools, setSchools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql">("teachers");
+  const [selectedSchoolCode, setSelectedSchoolCode] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // SQL & Windows setup instructions states
@@ -188,7 +189,10 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
             <button
-              onClick={() => setActiveSubTab("teachers")}
+              onClick={() => {
+                setActiveSubTab("teachers");
+                setSelectedSchoolCode(null);
+              }}
               className={`px-4 py-2 text-xs font-semibold rounded-lg border-none cursor-pointer transition-colors ${activeSubTab === "teachers" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
               id="subtab-teachers"
             >
@@ -228,126 +232,249 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
           </div>
         )}
 
-        {/* TAB 1: TEACHERS CONTROL TABLE */}
+        {/* TAB 1: TEACHERS CONTROL WITH SCHOOL CARDS */}
         {activeSubTab === "teachers" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-250 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-800">รายชื่อการขอเพิ่มสิทธิ์ยื่นข้อตกลง PA และลิงก์ออนไลน์</h3>
-                <p className="text-xs text-slate-500">อนุมัติคำขอส่งข้อมูลจากคุณครูเพื่อให้แสดงเป็นพอร์ตโฟลิโอแก่คณะกรรมการได้ทันที</p>
-              </div>
-              <button
-                onClick={fetchTeachers}
-                className="text-xs font-semibold border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 cursor-pointer"
-              >
-                รีเฟรชข้อมูล
-              </button>
-            </div>
+          <div className="space-y-6">
+            {!selectedSchoolCode ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">จัดการข้อมูลคุณครูแยกตามสถานศึกษา</h2>
+                    <p className="text-sm text-slate-500">เลือกโรงเรียนเพื่อตรวจสอบรายชื่อและอนุมัติสิทธิ์การเข้าใช้งาน</p>
+                  </div>
+                  <button
+                    onClick={fetchTeachers}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    รีเฟรชข้อมูลทั้งหมด
+                  </button>
+                </div>
 
-            {isLoading ? (
-              <div className="p-12 text-center text-slate-400 italic">กำลังกระดานรายชื่อ...</div>
-            ) : teachers.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 italic">ไม่พบบันทึกการสมัครและอัปโหลดของครูในระบบ</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                      <th className="py-4 px-5">ชื่อ-นามสกุลคุณครู</th>
-                      <th className="py-4 px-5">สังกัดโรงเรียน/ตำแหน่ง</th>
-                      <th className="py-4 px-5">ปีงบประมาณ</th>
-                      <th className="py-4 px-5">ลิงก์ประเมินผล (Slug)</th>
-                      <th className="py-4 px-5 text-center">สิทธิ์การออนไลน์</th>
-                      <th className="py-4 px-5 text-right">การจัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-sans">
-                    {teachers.map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 px-5">
-                          <span className="font-bold text-slate-800 text-sm block">{t.name}</span>
-                          <span className="text-slate-400 text-[10px] break-all">{t.email}</span>
-                          {t.idCard && (
-                            <span className="text-slate-500 text-[10px] block font-mono">ID: {t.idCard}</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-5">
-                          <span className="font-semibold block text-slate-700">{t.school}</span>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                            <span className="text-slate-500 font-medium">{t.position}</span>
-                            {t.role === "school_admin" && (
-                              <span className="bg-amber-100 text-amber-900 border border-amber-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">👑 School Admin</span>
-                            )}
-                            {t.role === "director" && (
-                              <span className="bg-indigo-100 text-indigo-900 border border-indigo-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">💼 ผู้อำนวยการ</span>
-                            )}
-                            {(!t.role || t.role === "teacher") && (
-                              <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-medium px-1.5 py-0.5 rounded">📝 ครูทั่วไป</span>
-                            )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {/* Card for each school */}
+                  {schools.map((sch) => {
+                    const schoolTeachers = teachers.filter(t => t.schoolSmissCode === sch.smissCode);
+                    const pendingCount = schoolTeachers.filter(t => t.status === "pending").length;
+                    
+                    return (
+                      <motion.div
+                        key={sch.smissCode}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all relative overflow-hidden group cursor-pointer ${pendingCount > 0 ? "border-amber-200 bg-amber-50/20" : ""}`}
+                        onClick={() => setSelectedSchoolCode(sch.smissCode)}
+                      >
+                        {pendingCount > 0 && (
+                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl flex items-center gap-1 animate-pulse">
+                            <AlertCircle className="w-3 h-3" />
+                            มี {pendingCount} รายชื่อรอดำเนินการ
                           </div>
-                        </td>
-                        <td className="py-4 px-5 font-mono text-slate-600">พ.ศ. {t.academicYear}</td>
-                        <td className="py-4 px-5">
-                          <a 
-                            href={`/?p=${t.slug}`} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="text-amber-600 font-semibold inline-flex items-center gap-1 hover:underline font-mono"
-                          >
-                            /{t.slug}
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </td>
-                        <td className="py-4 px-5 text-center">
-                          {t.status === "approved" ? (
-                            <span className="inline-block bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-150">
-                              ออนไลน์สำเร็จ
-                            </span>
-                          ) : (
-                            <span className="inline-block bg-amber-50 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-150">
-                              รอผู้ตรวจอนุมัติ
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
-                          {t.schoolSmissCode && (
+                        )}
+                        
+                        <div className="flex items-start gap-4 mb-4">
+                          <div className="bg-slate-100 text-slate-600 p-3 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                            <School className="w-6 h-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-slate-900 text-sm truncate leading-tight mb-1">{sch.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-mono">SMISS: {sch.smissCode}</p>
+                            <p className="text-[10px] text-slate-500 mt-1 truncate">{sch.affiliation}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-400 font-medium">สมาชิกคุณครู</span>
+                            <span className="text-lg font-bold text-slate-800">{schoolTeachers.length} <span className="text-xs font-normal text-slate-400">ท่าน</span></span>
+                          </div>
+                          <button className="px-4 py-2 bg-slate-900 border-none text-white text-[11px] font-bold rounded-xl flex items-center gap-2 group-hover:bg-amber-600 transition-colors cursor-pointer">
+                            ดูรายชื่อ <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+
+                  {/* Unassigned Teachers Card */}
+                  {teachers.filter(t => !t.schoolSmissCode).length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white rounded-2xl p-5 border border-slate-200 border-dashed shadow-sm hover:shadow-md transition-all cursor-pointer"
+                      onClick={() => setSelectedSchoolCode("unassigned")}
+                    >
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="bg-slate-100 text-slate-600 p-3 rounded-2xl">
+                          <User className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-900 text-sm leading-tight mb-1">คุณครูที่ยังไม่ระบุสังกัด</h4>
+                          <p className="text-[10px] text-slate-400">บัญชีที่ลงทะเบียนเข้ามารอยืนยันสังกัด</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-slate-400 font-medium">รอการยืนยัน</span>
+                          <span className="text-lg font-bold text-slate-800">{teachers.filter(t => !t.schoolSmissCode).length} <span className="text-xs font-normal text-slate-400">ท่าน</span></span>
+                        </div>
+                        <button className="px-4 py-2 bg-slate-700 text-white text-[11px] font-bold rounded-xl flex items-center gap-2 cursor-pointer border-none">
+                          ตรวจสอบ <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* DETAILED TEACHER TABLE VIEW */
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-white rounded-2xl shadow-sm border border-slate-250 overflow-hidden"
+              >
+                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setSelectedSchoolCode(null)}
+                      className="p-2 border border-slate-200 rounded-xl hover:bg-white text-slate-600 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-5 h-5 rotate-180" />
+                    </button>
+                    <div>
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        {selectedSchoolCode === "unassigned" 
+                          ? "รายชื่อคุณครูยังไม่ระบุสังกัด" 
+                          : schools.find(s => s.smissCode === selectedSchoolCode)?.name || "ไม่บชื่อโรงเรียน"}
+                        <span className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-full">
+                          {selectedSchoolCode === "unassigned" 
+                            ? teachers.filter(t => !t.schoolSmissCode).length 
+                            : teachers.filter(t => t.schoolSmissCode === selectedSchoolCode).length} ท่าน
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500">จัดการสิทธิ์การออนไลน์และอนุมัติคุณครูภายในสถานศึกษานี้</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={fetchTeachers}
+                      className="text-xs font-semibold border border-slate-200 rounded-lg px-3 py-2 hover:bg-white cursor-pointer bg-slate-50"
+                    >
+                      รีเฟรชรายชื่อ
+                    </button>
+                    <button
+                      onClick={() => setSelectedSchoolCode(null)}
+                      className="text-xs font-bold bg-slate-900 border-none text-white rounded-lg px-4 py-2 hover:bg-slate-800 cursor-pointer"
+                    >
+                      กลับไปหน้ารวม
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                        <th className="py-4 px-5">ชื่อ-นามสกุลคุณครู</th>
+                        <th className="py-4 px-5">สังกัดโรงเรียน/ตำแหน่ง</th>
+                        <th className="py-4 px-5">ปีงบประมาณ</th>
+                        <th className="py-4 px-5">ลิงก์ประเมินผล (Slug)</th>
+                        <th className="py-4 px-5 text-center">สิทธิ์การออนไลน์</th>
+                        <th className="py-4 px-5 text-right">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans">
+                      {teachers
+                        .filter(t => selectedSchoolCode === "unassigned" ? !t.schoolSmissCode : t.schoolSmissCode === selectedSchoolCode)
+                        .map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-4 px-5">
+                            <span className="font-bold text-slate-800 text-sm block">{t.name}</span>
+                            <span className="text-slate-400 text-[10px] break-all">{t.email}</span>
+                            {t.idCard && (
+                              <span className="text-slate-500 text-[10px] block font-mono">ID: {t.idCard}</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5">
+                            <span className="font-semibold block text-slate-700">{t.school}</span>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span className="text-slate-500 font-medium">{t.position}</span>
+                              {t.role === "school_admin" && (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">👑 School Admin</span>
+                              )}
+                              {t.role === "director" && (
+                                <span className="bg-indigo-100 text-indigo-900 border border-indigo-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded">💼 ผู้อำนวยการ</span>
+                              )}
+                              {(!t.role || t.role === "teacher") && (
+                                <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-medium px-1.5 py-0.5 rounded">📝 ครูทั่วไป</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 font-mono text-slate-600">พ.ศ. {t.academicYear}</td>
+                          <td className="py-4 px-5">
+                            <a 
+                              href={`/?p=${t.slug}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-amber-600 font-semibold inline-flex items-center gap-1 hover:underline font-mono"
+                            >
+                              /{t.slug}
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </td>
+                          <td className="py-4 px-5 text-center">
+                            {t.status === "approved" ? (
+                              <span className="inline-block bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-150">
+                                ออนไลน์สำเร็จ
+                              </span>
+                            ) : (
+                              <span className="inline-block bg-amber-50 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-150 animate-pulse">
+                                รอผู้ตรวจอนุมัติ
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
+                            {t.schoolSmissCode && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSchoolAdmin(t.id, t.schoolSmissCode!, t.role === "school_admin")}
+                                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border transition-colors ${
+                                  t.role === "school_admin"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                    : "bg-slate-50 text-slate-750 border-slate-200 hover:bg-slate-150"
+                                }`}
+                                title="กำหนดบทบาทผู้บริหารแอดมินสำหรับการอนุมัติครูภายในสถาบัน"
+                              >
+                                {t.role === "school_admin" ? "👑 ปลดแอดมิน" : "👑 ตั้งเป็นแอดมิน"}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleToggleSchoolAdmin(t.id, t.schoolSmissCode!, t.role === "school_admin")}
-                              className={`px-2 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border transition-colors ${
-                                t.role === "school_admin"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                                  : "bg-slate-50 text-slate-750 border-slate-200 hover:bg-slate-150"
+                              onClick={() => handleApprove(t.id, t.status)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-none transition-colors ${
+                                t.status === "approved"
+                                  ? "bg-slate-100 text-slate-600 hover:bg-slate-250"
+                                  : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
                               }`}
-                              title="กำหนดบทบาทผู้บริหารแอดมินสำหรับการอนุมัติครูภายในสถาบัน"
                             >
-                              {t.role === "school_admin" ? "👑 ปลดแอดมิน" : "👑 ตั้งเป็นแอดมิน"}
+                              {t.status === "approved" ? "ระงับชั่วคราว" : "อนุมัติใช้งาน"}
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(t.id, t.status)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-none transition-colors ${
-                              t.status === "approved"
-                                ? "bg-slate-100 text-slate-600 hover:bg-slate-250"
-                                : "bg-emerald-500 text-white hover:bg-emerald-600"
-                            }`}
-                          >
-                            {t.status === "approved" ? "ระงับชั่วคราว" : "อนุมัติใช้งาน"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(t.id)}
-                            className="bg-rose-50 text-rose-600 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg border-none cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(t.id)}
+                              className="bg-rose-50 text-rose-600 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg border-none cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
             )}
           </div>
         )}
