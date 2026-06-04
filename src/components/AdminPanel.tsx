@@ -26,8 +26,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [copiedGas, setCopiedGas] = useState(false);
 
   const gasCode = `/**
- * Google Apps Script for School File Storage Integration (VERSION 2.5 - MULTI-ACTION)
- * รองรับ: อัปโหลดไฟล์ (PDF/Image) และการสำรองโครงการ (JSON)
+ * Google Apps Script for School File Storage Integration (VERSION 2.6 - FINAL)
+ * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ) และสำรองข้อมูลคุณครู (JSON)
  * อัปเดตล่าสุด: ${new Date().toLocaleDateString('th-TH')}
  */
 
@@ -42,30 +42,37 @@ function doPost(e) {
     var action = requestData.action;
     var folderId = requestData.folderId;
     
-    if (!folderId) throw new Error("Missing required parameter: folderId");
+    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ Google Drive (folderId)");
     var parentFolder = DriveApp.getFolderById(folderId);
 
-    // 1. ACTION: UPLOAD FILE / IMAGE (Generic)
+    // 1. ACTION: UPLOAD FILE (PDF หรือ รูปภาพ)
     if (action === "uploadFile" || action === "uploadImage") {
       var teacherId = requestData.teacherId;
       var fileName = requestData.fileName || ("file_" + Date.now());
-      var fileBytes = Utilities.base64Decode(requestData.fileData || (requestData.imageBase64 ? requestData.imageBase64.split(",")[1] : ""));
+      
+      // รับข้อมูลไฟล์ (รองรับทั้งส่งมาตรงๆ หรือมาแบบ DataURL)
+      var rawData = requestData.fileData || requestData.imageBase64 || "";
+      if (rawData.indexOf(",") > -1) {
+        rawData = rawData.split(",")[1];
+      }
+      
+      var fileBytes = Utilities.base64Decode(rawData);
       var contentType = requestData.contentType || requestData.mimeType || "application/octet-stream";
       
-      if (!fileBytes || fileBytes.length === 0) throw new Error("No file bytes received");
+      if (!fileBytes || fileBytes.length === 0) throw new Error("ไม่พบข้อมูลไฟล์ที่ส่งมา");
 
       var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
       var blob = Utilities.newBlob(fileBytes, contentType, fileName);
       var file = teacherFolder.createFile(blob);
       
-      // Share file so it can be viewed on the web
+      // ตั้งค่าแชร์ไฟล์อัตโนมัติ (Anyone with the link can view)
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       
       return JSON_RESPONSE({
         success: true,
         fileId: file.getId(),
         fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
-        url: "https://lh3.googleusercontent.com/d/" + file.getId() // For backward compatibility
+        url: "https://lh3.googleusercontent.com/d/" + file.getId() 
       });
     }
     
@@ -87,11 +94,11 @@ function doPost(e) {
       
       return JSON_RESPONSE({ 
         success: true, 
-        message: "Backup completed for " + teacherName 
+        message: "สำรองข้อมูลสำเร็จสำหรับ " + teacherName 
       });
     }
 
-    return JSON_RESPONSE({ success: false, error: "Action '" + action + "' not recognized by App Script." });
+    return JSON_RESPONSE({ success: false, error: "ไม่พบคำสั่ง (Action) '" + action + "' ในระบบสคริปต์" });
 
   } catch (error) {
     return JSON_RESPONSE({ success: false, error: "GAS Error: " + error.toString() });
@@ -105,7 +112,7 @@ function getOrCreateSubFolder(parent, name) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity Service v2.5 - Online & Active")
+  return ContentService.createTextOutput("School Drive Service v2.6 Ready (Online)")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
