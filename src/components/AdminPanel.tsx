@@ -24,6 +24,37 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [copiedGas, setCopiedGas] = useState(false);
+  const [isTestingGas, setIsTestingGas] = useState(false);
+
+  const testGasConnection = async (gasUrl: string, folderId: string) => {
+    if (!gasUrl || !folderId) {
+      setMessage({ type: "error", text: "กรุณาระบุ Web App URL และ Folder ID ก่อนทำการทดสอบ" });
+      return;
+    }
+
+    setIsTestingGas(true);
+    try {
+      const response = await fetch("/api/proxy-gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gasUrl: gasUrl,
+          payload: { action: "testConnection", folderId: folderId }
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: "success", text: "เชื่อมต่อสำเร็จ! ระบบสามารถติดต่อ Google Drive ได้ปกติ" });
+      } else {
+        setMessage({ type: "error", text: "การทดสอบล้มเหลว: " + (data.error || "ไม่ทราบสาเหตุ") });
+      }
+    } catch (err: any) {
+      setMessage({ type: "error", text: "ข้อผิดพลาดระบบการเชื่อมต่อ: " + err.message });
+    } finally {
+      setIsTestingGas(false);
+    }
+  };
 
   const gasCode = `/**
  * Google Apps Script for School File Storage Integration (VERSION 3.0 - STABLE)
@@ -836,6 +867,38 @@ function doGet(e) {
                     ๒. การตั้งค่าสิทธิ์ <strong>"Who has access"</strong> ต้องเลือกเป็น <strong>"Anyone"</strong> เท่านั้น<br />
                     ๓. หากหน้าจอค้างโค้ดเดิม ให้กด <strong>Ctrl + F5</strong> เพื่อรีเฟรชเบราว์เซอร์
                   </p>
+                </div>
+
+                <div className="p-4 bg-slate-900 rounded-xl border border-slate-700 space-y-3 mt-4">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-emerald-500" />
+                    <span className="font-bold text-white text-xs">เครื่องมือทดสอบการเชื่อมต่อ (Test Tool)</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    <input 
+                      type="text" 
+                      id="test-gas-url"
+                      placeholder="วาง GAS Web App URL ของท่านที่นี่"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-[10px] text-emerald-400 font-mono outline-none focus:border-emerald-500"
+                    />
+                    <input 
+                      type="text" 
+                      id="test-folder-id"
+                      placeholder="วาง Google Drive Folder ID ของท่านที่นี่"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-[10px] text-emerald-400 font-mono outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={() => {
+                        const url = (document.getElementById("test-gas-url") as HTMLInputElement)?.value;
+                        const id = (document.getElementById("test-folder-id") as HTMLInputElement)?.value;
+                        testGasConnection(url, id);
+                      }}
+                      disabled={isTestingGas}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] cursor-pointer border-none transition-colors disabled:opacity-50"
+                    >
+                      {isTestingGas ? "กำลังทดสอบ..." : "ทดสอบส่งข้อมูล (Test Connection)"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

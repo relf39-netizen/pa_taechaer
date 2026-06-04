@@ -9,82 +9,111 @@ import {
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 import PublicProfile from "./PublicProfile";
 
-const GOOGLE_APPS_SCRIPT_TEMPLATE = `function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Google Apps Script connected!" }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
+ * Google Apps Script for School File Storage Integration (VERSION 3.0 - STABLE)
+ * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ/ไฟล์อื่นๆ) และสำรองข้อมูลคุณครู (JSON)
+ */
 
 function doPost(e) {
+  var JSON_RESPONSE = function(data) {
+    return ContentService.createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  };
+
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return JSON_RESPONSE({ success: false, error: "No post data received" });
+    }
+
     var requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
+    var folderId = requestData.folderId;
     
-    // 1. Upload evidence image
-    if (action === "uploadImage") {
-      var folderId = requestData.folderId;
-      var teacherId = requestData.teacherId;
-      var fileName = requestData.fileName || ("img_" + Date.now());
-      var fileBytes = Utilities.base64Decode(requestData.imageBase64.split(",")[1]);
-      var mimeType = requestData.mimeType || "image/jpeg";
+    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ Google Drive (folderId)");
+    
+    var parentFolder;
+    try {
+      parentFolder = DriveApp.getFolderById(folderId);
+    } catch(fErr) {
+      throw new Error("ไม่สามารถเข้าถึงโฟลเดอร์ได้: เช็ค Folder ID หรือลืมแชร์โฟลเดอร์ให้เป็น 'Anyone with the link' หรือยัง?");
+    }
+
+    // 1. ACTION: UPLOAD FILE
+    if (action === "uploadFile" || action === "uploadImage") {
+      var teacherId = requestData.teacherId || "General";
+      var fileName = requestData.fileName || ("file_" + Date.now());
+      var rawData = requestData.fileData || requestData.imageBase64 || "";
       
-      var parentFolder = DriveApp.getFolderById(folderId);
-      var subFolders = parentFolder.getFoldersByName(teacherId);
-      var teacherFolder;
-      if (subFolders.hasNext()) {
-        teacherFolder = subFolders.next();
-      } else {
-        teacherFolder = parentFolder.createFolder(teacherId);
+      if (rawData.indexOf(",") > -1) {
+        rawData = rawData.split(",")[1];
       }
       
-      var blob = Utilities.newBlob(fileBytes, mimeType, fileName);
+      if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ในคำร้องขอ");
+      
+      var fileBytes = Utilities.base64Decode(rawData);
+      var contentType = requestData.contentType || "application/octet-stream";
+      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
+      
+      var blob = Utilities.newBlob(fileBytes, contentType, fileName);
       var file = teacherFolder.createFile(blob);
+      
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       
-      var directImgUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=s1600";
-      
-      return ContentService.createTextOutput(JSON.stringify({
+      return JSON_RESPONSE({
         success: true,
-        url: directImgUrl,
-        driveUrl: file.getUrl(),
-        fileId: file.getId()
-      })).setMimeType(ContentService.MimeType.JSON);
+        fileId: file.getId(),
+        fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
+        url: "https://lh3.googleusercontent.com/d/" + file.getId()
+      });
     }
     
-    // 2. Save teacher data JSON
+    // 2. ACTION: SAVE TEACHER DATA
     if (action === "saveTeacherData") {
-      var folderId = requestData.folderId;
       var teacherId = requestData.teacherId;
+      var teacherName = requestData.teacherName || "Teacher";
+      if (!teacherId) throw new Error("Missing teacherId for backup");
+      
       var portfolioContent = JSON.stringify(requestData.data, null, 2);
+      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
+      var backupFileName = "pa_portfolio_backup_" + teacherId + ".json";
       
-      var parentFolder = DriveApp.getFolderById(folderId);
-      var subFolders = parentFolder.getFoldersByName(teacherId);
-      var teacherFolder;
-      if (subFolders.hasNext()) {
-        teacherFolder = subFolders.next();
-      } else {
-        teacherFolder = parentFolder.createFolder(teacherId);
-      }
-      
-      var files = teacherFolder.getFilesByName("pa_portfolio_backup.json");
+      var files = teacherFolder.getFilesByName(backupFileName);
       if (files.hasNext()) {
-        var file = files.next();
-        file.setContent(portfolioContent);
+        files.next().setContent(portfolioContent);
       } else {
-        teacherFolder.createFile("pa_portfolio_backup.json", portfolioContent, "application/json");
+        teacherFolder.createFile(backupFileName, portfolioContent, "application/json");
       }
       
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: "Teacher portfolio backed up successfully!"
-      })).setMimeType(ContentService.MimeType.JSON);
+      return JSON_RESPONSE({ 
+        success: true, 
+        message: "Backup completed for " + teacherName 
+      });
     }
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Unknown action" }))
-      .setMimeType(ContentService.MimeType.JSON);
+
+    // 3. ACTION: TEST CONNECTION
+    if (action === "testConnection") {
+      return JSON_RESPONSE({ 
+        success: true, 
+        message: "เชื่อมต่อกับ Google Apps Script สำเร็จ (Tested Folder: " + parentFolder.getName() + ")" 
+      });
+    }
+
+    return JSON_RESPONSE({ success: false, error: "Action '" + action + "' not recognized." });
+
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return JSON_RESPONSE({ success: false, error: "GAS Error: " + error.toString() });
   }
+}
+
+function getOrCreateSubFolder(parent, name) {
+  var subFolders = parent.getFoldersByName(name);
+  if (subFolders.hasNext()) return subFolders.next();
+  return parent.createFolder(name);
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("School Drive Connectivity v3.0 - Operational")
+    .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
 interface TeacherDashboardProps {
@@ -156,6 +185,37 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTestingGas, setIsTestingGas] = useState(false);
+
+  const testGasConnection = async () => {
+    if (!gasWebUrl || !driveFolderId) {
+      triggerToast("error", "กรุณาระบุ Web App URL และ Folder ID ก่อนทำการทดสอบ");
+      return;
+    }
+
+    setIsTestingGas(true);
+    try {
+      const response = await fetch("/api/proxy-gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gasUrl: gasWebUrl,
+          payload: { action: "testConnection", folderId: driveFolderId }
+        })
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        triggerToast("success", "เชื่อมต่อสำเร็จ! ระบบสามารถติดต่อ Google Drive ได้ปกติ");
+      } else {
+        triggerToast("error", "การทดสอบล้มเหลว: " + (resData.error || "ไม่ทราบสาเหตุ"));
+      }
+    } catch (err: any) {
+      triggerToast("error", "ข้อผิดพลาดระบบการเชื่อมต่อ: " + err.message);
+    } finally {
+      setIsTestingGas(false);
+    }
+  };
 
   // Trigger brief alert
   const triggerToast = (type: "success" | "error", message: string) => {
@@ -2307,7 +2367,17 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                           </div>
                         </div>
 
-                        <div className="pt-4 border-t border-slate-100 flex justify-end">
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={testGasConnection}
+                            disabled={isTestingGas || !gasWebUrl || !driveFolderId}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs border border-sky-200 cursor-pointer transition-all disabled:opacity-50"
+                          >
+                            <Globe className={`w-4 h-4 ${isTestingGas ? "animate-spin" : ""}`} />
+                            {isTestingGas ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ Drive"}
+                          </button>
+                          
                           <button
                             type="submit"
                             disabled={isSaving}
