@@ -145,6 +145,14 @@ function doPost(e) {
       });
     }
 
+    // 3. ACTION: TEST CONNECTION
+    if (action === "testConnection") {
+      return JSON_RESPONSE({ 
+        success: true, 
+        message: "เชื่อมต่อกับ Google Apps Script สำเร็จ (Tested Folder: " + parentFolder.getName() + ")" 
+      });
+    }
+
     return JSON_RESPONSE({ success: false, error: "ไม่พบคำสั่ง (Action) '" + action + "' ในระบบสคริปต์" });
 
   } catch (error) {

@@ -72,30 +72,29 @@ app.post("/api/proxy-gas", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing Google Apps Script URL" });
     }
 
-    console.log(`[GAS Proxy] Attempting upload to: ${gasUrl}`);
+    console.log(`[GAS Proxy] Forwarding ${payload.action} to Google...`);
 
     const response = await fetch(gasUrl, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
       body: JSON.stringify(payload),
-      redirect: 'follow'
+      headers: { "Content-Type": "text/plain" }, // Avoid preflights and keep it simple for GAS
+      redirect: "follow"
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[GAS Proxy] Google responded with status ${response.status}:`, errorText);
-      return res.status(response.status).json({ success: false, error: `Google Drive Error (${response.status})` });
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const data = await response.json();
+      console.log("[GAS Proxy] Success response from Google.");
+      res.json(data);
+    } else {
+      const text = await response.text();
+      console.log("[GAS Proxy] Non-JSON response:", text.substring(0, 200));
+      // Even if not JSON, if it was successful it might be ok, but usually GAS returns JSON for our actions
+      res.json({ success: response.ok, message: text });
     }
-
-    const data = await response.json();
-    console.log("[GAS Proxy] Response from Google:", data);
-    res.json(data);
   } catch (error: any) {
     console.error("[GAS Proxy] Critical Error:", error);
-    res.status(500).json({ success: false, error: "ระบบ Proxy ไม่สามารถติดต่อ Google Drive ได้: " + error.message });
+    res.status(500).json({ success: false, error: "Cloud Proxy Error: " + error.message });
   }
 });
 

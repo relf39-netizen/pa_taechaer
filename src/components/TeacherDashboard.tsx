@@ -647,7 +647,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           folderId: schoolDriveConfig.driveFolderId,
           teacherId: data.teacher.id,
           fileName: `${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
-          fileData: uploadFileBase64.split(",")[1],
+          fileData: uploadFileBase64.includes(",") ? uploadFileBase64.split(",")[1] : uploadFileBase64,
           contentType: uploadFileType || "application/octet-stream"
         };
 
@@ -671,7 +671,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           driveFileId = uploadData.fileId;
           triggerToast("success", "อัปโหลดไฟล์ไปยัง Google Drive สำเร็จแล้ว");
         } else {
-          throw new Error(uploadData.error || "Upload failed");
+          throw new Error(uploadData.error || uploadData.message || "Upload failed");
         }
 
         const newEvidence: EvidenceLink = {
@@ -798,7 +798,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           folderId: schoolDriveConfig.driveFolderId,
           teacherId: data.teacher.id,
           fileName: `Challenge_${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
-          fileData: uploadFileBase64.split(",")[1],
+          fileData: uploadFileBase64.includes(",") ? uploadFileBase64.split(",")[1] : uploadFileBase64,
           contentType: uploadFileType || "application/octet-stream"
         };
 
@@ -822,7 +822,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           driveFileId = uploadData.fileId;
           triggerToast("success", "อัปโหลดไฟล์หลักฐานไปยัง Google Drive สำเร็จ");
         } else {
-          throw new Error(uploadData.error || "Upload failed");
+          throw new Error(uploadData.error || uploadData.message || "Upload failed");
         }
 
         const newEvidence: EvidenceLink = {
