@@ -4,88 +4,10 @@ import {
   User, School, Landmark, Phone, Globe, BookOpen, Clock, 
   CheckCircle2, Plus, Trash2, FileText, ExternalLink, Save, 
   Eye, Check, AlertCircle, Sparkles, LogOut, Code, Library,
-  Edit2, Camera, Image
+  Edit2, Camera, Image, Cloud, Code2, X, HelpCircle
 } from "lucide-react";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 import PublicProfile from "./PublicProfile";
-
-const GOOGLE_APPS_SCRIPT_TEMPLATE = `function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Google Apps Script connected!" }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  try {
-    var requestData = JSON.parse(e.postData.contents);
-    var action = requestData.action;
-    
-    // 1. Upload evidence image
-    if (action === "uploadImage") {
-      var folderId = requestData.folderId;
-      var teacherId = requestData.teacherId;
-      var fileName = requestData.fileName || ("img_" + Date.now());
-      var fileBytes = Utilities.base64Decode(requestData.imageBase64.split(",")[1]);
-      var mimeType = requestData.mimeType || "image/jpeg";
-      
-      var parentFolder = DriveApp.getFolderById(folderId);
-      var subFolders = parentFolder.getFoldersByName(teacherId);
-      var teacherFolder;
-      if (subFolders.hasNext()) {
-        teacherFolder = subFolders.next();
-      } else {
-        teacherFolder = parentFolder.createFolder(teacherId);
-      }
-      
-      var blob = Utilities.newBlob(fileBytes, mimeType, fileName);
-      var file = teacherFolder.createFile(blob);
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      
-      var directImgUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=s1600";
-      
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        url: directImgUrl,
-        driveUrl: file.getUrl(),
-        fileId: file.getId()
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 2. Save teacher data JSON
-    if (action === "saveTeacherData") {
-      var folderId = requestData.folderId;
-      var teacherId = requestData.teacherId;
-      var portfolioContent = JSON.stringify(requestData.data, null, 2);
-      
-      var parentFolder = DriveApp.getFolderById(folderId);
-      var subFolders = parentFolder.getFoldersByName(teacherId);
-      var teacherFolder;
-      if (subFolders.hasNext()) {
-        teacherFolder = subFolders.next();
-      } else {
-        teacherFolder = parentFolder.createFolder(teacherId);
-      }
-      
-      var files = teacherFolder.getFilesByName("pa_portfolio_backup.json");
-      if (files.hasNext()) {
-        var file = files.next();
-        file.setContent(portfolioContent);
-      } else {
-        teacherFolder.createFile("pa_portfolio_backup.json", portfolioContent, "application/json");
-      }
-      
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: "Teacher portfolio backed up successfully!"
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Unknown action" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}`;
 
 interface TeacherDashboardProps {
   initialData: TeacherData;
@@ -155,6 +77,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showScriptModal, setShowScriptModal] = useState(false);
 
   // Trigger brief alert
   const triggerToast = (type: "success" | "error", message: string) => {
@@ -1857,7 +1780,6 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-[#facc15] text-[#1e3a8a] rounded-lg">
                       <School className="w-6 h-6" />
-                    </div>
                     <div>
                       <h2 className="text-xl font-bold font-sans">
                         แผงควบคุมระบบจัดตั้งและบริหารโรงเรียน
@@ -1923,13 +1845,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                           ) : (
                             <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                               {committeeMembers.map((member) => (
-                                <div key={member.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-xs">
-                                  <div>
-                                    <span className="font-semibold text-slate-800">{member.name}</span>
-                                    <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-705 px-1.5 py-0.5 rounded">
-                                      {member.title}
-                                    </span>
-                                  </div>
+                                <div key={member.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-xs text-slate-700">
+                                  <span>{member.name} ({member.title})</span>
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveCommitteeMember(member.id)}
@@ -1944,123 +1861,80 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
                           {/* Quick Add committee member */}
                           <div className="mt-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                                ชื่อ-นามสกุล และวิทยฐานะกรรมการหลัก
-                              </label>
-                              <input
-                                type="text"
-                                value={newCommName}
-                                onChange={(e) => setNewCommName(e.target.value)}
-                                placeholder="เช่น ดร.วิทยา ใจแข็ง (ศึกษานิเทศก์ชำนาญการ)"
-                                className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
-                              />
-                            </div>
+                            <input
+                              type="text"
+                              value={newCommName}
+                              onChange={(e) => setNewCommName(e.target.value)}
+                              placeholder="ชื่อ-นามสกุล และวิทยฐานะกรรมการหลัก"
+                              className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
+                            />
                             <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                                  ตำแหน่งในบอร์ด
-                                </label>
-                                <select
-                                  value={newCommTitle}
-                                  onChange={(e) => setNewCommTitle(e.target.value)}
-                                  className="block w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
-                                >
-                                  <option value="ผู้ทรงคุณวุฒิ">ผู้ทรงคุณวุฒิ</option>
-                                  <option value="ผู้ทรงคุณวุฒิภายนอก">ผู้ทรงคุณวุฒิภายนอก</option>
-                                  <option value="ศึกษานิเทศก์">ศึกษานิเทศก์</option>
-                                  <option value="กรรมการร่วม">กรรมการร่วม</option>
-                                </select>
-                              </div>
-                              <div className="flex items-end">
-                                <button
-                                  type="button"
-                                  onClick={handleAddCommitteeMember}
-                                  className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold border-none cursor-pointer"
-                                >
-                                  เพิ่มเข้ารายชื่อ
-                                </button>
-                              </div>
+                              <select
+                                value={newCommTitle}
+                                onChange={(e) => setNewCommTitle(e.target.value)}
+                                className="block w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                              >
+                                <option value="ผู้ทรงคุณวุฒิ">ผู้ทรงคุณวุฒิ</option>
+                                <option value="ผู้ทรงคุณวุฒิภายนอก">ผู้ทรงคุณวุฒิภายนอก</option>
+                                <option value="ศึกษานิเทศก์">ศึกษานิเทศก์</option>
+                                <option value="กรรมการร่วม">กรรมการร่วม</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={handleAddCommitteeMember}
+                                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold border-none cursor-pointer"
+                              >
+                                เพิ่มเข้ารายชื่อ
+                              </button>
                             </div>
                           </div>
                         </div>
 
                         {/* Google Drive Configuration Section */}
-                        <div className="border-t border-slate-100 my-5 pt-4">
+                        <div className="border-t border-slate-100 my-5 pt-4 bg-indigo-50/20 p-4 rounded-xl border border-indigo-100/50">
                           <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 mb-1.5">
-                            ☁️ ตั้งค่าการเก็บบันทึกข้อมูล & รูปภาพลง Google Drive
+                            <Cloud className="w-4 h-4 text-indigo-600" />
+                            ตั้งค่าระบบ Google Drive อัตโนมัติ (Automation Hub)
                           </h4>
-                          <p className="text-[10px] text-slate-500 mb-3.5 leading-relaxed">
-                            กำหนดให้ระบบจัดส่งและบันทึกประวัติสะสมงาน รูปภาพเกียรติบัตร และภาพกิจกรรมของคุณครูแต่ละโรงเรียนไว้ที่ Google Drive โดยตรง ผ่านบริการ Google Apps Script
+                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">
+                            กำหนดให้ระบบจัดส่งและบันทึกหลักฐานต่างๆ ไปเก็บไว้ที่ Google Drive โดยตรง
                           </p>
 
                           <div className="space-y-4">
                             <div>
                               <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                                Google Drive Folder ID (รหัสโฟลเดอร์สำหรับเก็บข้อมูลคุณครู)
+                                Google Drive Folder ID
                               </label>
                               <input
                                 type="text"
                                 value={driveFolderId}
                                 onChange={(e) => setDriveFolderId(e.target.value)}
-                                placeholder="เช่น 1A2b3C4d5E6F7G8H9I0J-xyz"
-                                className="block w-full px-3 py-2 border border-slate-205 rounded-xl text-xs font-sans bg-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all"
+                                placeholder="คัดลอกจาก URL ของโฟลเดอร์"
+                                className="block w-full px-3 py-2.5 border border-slate-200 bg-white rounded-xl text-[11px] font-sans"
                               />
-                              <p className="text-[9px] text-slate-400 mt-1 font-sans">
-                                * สร้างโฟลเดอร์แม่บน Google Drive ของท่าน จากนั้นมองหาและคัดลอกส่วนรหัสยาวๆ ท้าย URL โฟลเดอร์มาวาง
-                              </p>
                             </div>
 
                             <div>
                               <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                                Google Apps Script Web App URL (ลิงก์เผยแพร่เว็บแอปพลิเคชัน)
+                                Web App Deployment URL
                               </label>
                               <input
-                                type="url"
+                                type="text"
                                 value={gasWebUrl}
                                 onChange={(e) => setGasWebUrl(e.target.value)}
-                                placeholder="https://script.google.com/macros/s/.../exec"
-                                className="block w-full px-3 py-2 border border-slate-205 rounded-xl text-xs font-sans bg-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all"
+                                placeholder="https://script.google.com/..."
+                                className="block w-full px-3 py-2.5 border border-slate-200 bg-white rounded-xl text-[11px] font-sans"
                               />
                             </div>
 
-                            {/* Google Apps Script integration details */}
-                            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                              <details className="group">
-                                <summary className="flex items-center justify-between text-[11px] font-bold text-slate-700 cursor-pointer select-none">
-                                  <span>📜 วิธีการจัดตั้ง Google Apps Script & รหัสโค้ด</span>
-                                  <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                                </summary>
-                                <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[10px] text-slate-650 space-y-2.5 font-sans leading-relaxed">
-                                  <p className="font-bold text-amber-600">🛠️ ขั้นตอนการสร้าง:</p>
-                                  <ol className="list-decimal list-inside space-y-1 pl-1">
-                                    <li>เข้าสู่ระบบ <a href="https://script.google.com" target="_blank" rel="noreferrer" className="underline font-semibold text-blue-600">Google Apps Script Dashboard</a></li>
-                                    <li>กด <b>โครงการใหม่ (New Project)</b> และลบโค้ดเริ่มต้นทิ้งทั้งหมด</li>
-                                    <li>คัดลอกรหัสโค้ดด้านล่างนี้ และนำไปวางแทนที่</li>
-                                    <li>คลิก <b>การทำให้ใช้งานได้ (Deploy)</b> &gt; <b>การทำให้ใช้งานได้ใหม่ (New Deployment)</b></li>
-                                    <li>เลือกประเภทเป็น <b>เว็บแอป (Web App)</b>, โครงการรันในนาม: <b>ฉัน (Me)</b> และผู้เข้าถึง: <b>ทุกคน (Anyone)</b></li>
-                                    <li>กด Deploy และกดยืนยันสิทธิ์สตรีมระบบ จากนั้นคัดเอา URL เว็บแอปมาใส่ในช่องด้านบน</li>
-                                  </ol>
-                                  <div className="relative mt-2">
-                                    <textarea
-                                      readOnly
-                                      value={GOOGLE_APPS_SCRIPT_TEMPLATE}
-                                      className="w-full h-36 p-2.5 bg-slate-900 text-emerald-400 rounded-lg font-mono text-[9px] select-all outline-none border border-slate-700"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_TEMPLATE);
-                                        triggerToast("success", "คัดลอกรหัสโค้ด Google Apps Script สำเร็จแล้ว!");
-                                      }}
-                                      className="absolute right-1.5 top-1.5 px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded text-[9px] cursor-pointer shadow border-none transition-colors"
-                                    >
-                                      คัดลอกโค้ด
-                                    </button>
-                                  </div>
-                                </div>
-                              </details>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowScriptModal(true)}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold border-none cursor-pointer transition-all shadow-md active:scale-[0.98]"
+                            >
+                              <Code2 className="w-4 h-4" />
+                              รับโค้ดสคริปต์ Google Apps Script (สำหรับ Admin)
+                            </button>
                           </div>
                         </div>
 
@@ -2071,7 +1945,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                             className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs border-none cursor-pointer transition-all shadow"
                           >
                             <Save className="w-4 h-4" />
-                            {isSaving ? "กำลังบันทึก..." : "บันทึกตั้งค่าโครงสร้างและเชื่อม Drive"}
+                            {isSaving ? "กำลังบันทึก..." : "บันทึกและเชื่อมระบบ"}
                           </button>
                         </div>
                       </form>
@@ -2299,6 +2173,145 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         </section>
 
       </main>
+
+      {/* MODAL: GOOGLE APPS SCRIPT CODE */}
+      {showScriptModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div
+            className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-indigo-600 text-white font-sans">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Cloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg leading-tight">Google Apps Script Integration (สคริปต์สำหรับโรงเรียน)</h3>
+                  <p className="text-xs text-indigo-100 opacity-80">คัดลอกโค้ดนี้ไปวางที่ script.google.com เพื่อเชื่อมต่อระบบกับ Google Drive</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowScriptModal(false)}
+                className="p-2 hover:bg-white/10 rounded-full text-white border-none cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-6 font-sans">
+              <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-xl">
+                <h4 className="text-sm font-bold text-amber-900 mb-1 flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4" /> ขั้นตอนการติดตั้งสคริปต์ลง Google Drive
+                </h4>
+                <ol className="text-xs text-amber-800 space-y-1 ml-4 list-decimal leading-relaxed">
+                  <li>ไปที่ <a href="https://script.google.com" target="_blank" rel="noreferrer" className="underline font-bold">script.google.com</a> แล้วกดปุ่ม "โครงการใหม่ (New Project)"</li>
+                  <li>ลบโค้ดเดิมทิ้งให้หมด และ<b>คัดลอกโค้ดด้านล่างนี้</b>ไปวางแทนที่ทั้งหมด</li>
+                  <li>กดปุ่ม <b>"การทำให้ใช้งานได้ (Deploy)"</b> เลือก <b>"การทำให้ใช้งานได้ใหม่ (New Deployment)"</b></li>
+                  <li>เลือกประเภทเป็น "เว็บแอป (Web App)" และตั้งค่า "ผู้ที่มีสิทธิ์เข้าถึง" เป็น <b>"ทุกคน (Anyone)"</b> เท่านั้น</li>
+                  <li>กด "ทำให้ใช้งานได้" และคัดลอก URL ของเว็บแอป (Web App URL) มาวางในช่องด้านหลัง "ที่อยู่สคริปต์"</li>
+                </ol>
+              </div>
+
+              <div className="relative group">
+                <div className="absolute top-4 right-4 z-10">
+                  <button
+                    onClick={() => {
+                      const codeContainer = document.getElementById("apps-script-code-text");
+                      if (codeContainer) {
+                        navigator.clipboard.writeText(codeContainer.innerText);
+                        triggerToast("success", "คัดลอกรหัสสคริปต์ลงคลิปบอร์ดแล้ว");
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl border-none cursor-pointer shadow-lg hover:bg-slate-800 transition-all font-sans"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> คัดลอกโค้ดสคริปต์
+                  </button>
+                </div>
+                <div className="bg-slate-950 rounded-2xl p-6 overflow-x-auto border border-slate-700 shadow-inner max-h-[400px]">
+                  <pre id="apps-script-code-text" className="text-indigo-300 text-[11px] font-mono leading-relaxed">
+{`/**
+ * Google Apps Script for School Portfolio Integration
+ * Designed for School Admin Management
+ */
+
+const MAIN_FOLDER_ID = "${driveFolderId || 'ระบุ_FOLDER_ID_ที่นี่'}"; // ID ของโฟลเดอร์หลักโรงเรียน
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const { teacherName, teacherId, subFolderName, files } = data;
+    
+    // 1. เข้าถึงโฟลเดอร์แม่ หรือสร้างใหม่สำหรับคุณครู
+    const mainFolder = DriveApp.getFolderById(MAIN_FOLDER_ID);
+    let teacherFolder;
+    const teacherFolders = mainFolder.getFoldersByName(teacherName);
+    
+    if (teacherFolders.hasNext()) {
+      teacherFolder = teacherFolders.next();
+    } else {
+      teacherFolder = mainFolder.createFolder(teacherName);
+    }
+    
+    // 2. เข้าถึงโฟลเดอร์ย่อย (เช่น เกียรติบัตร, ผลงานนักเรียน)
+    let targetSubFolder;
+    const subCats = teacherFolder.getFoldersByName(subFolderName);
+    if (subCats.hasNext()) {
+      targetSubFolder = subCats.next();
+    } else {
+      targetSubFolder = teacherFolder.createFolder(subFolderName);
+    }
+    
+    // 3. จัดการบันทึกไฟล์ (Supporting Multiple Files)
+    const results = [];
+    if (files && files.length > 0) {
+      files.forEach(file => {
+        const contentType = file.type;
+        const base64Data = file.content.split(",")[1];
+        const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), contentType, file.name);
+        const savedFile = targetSubFolder.createFile(blob);
+        results.push({
+          name: file.name,
+          id: savedFile.getId(),
+          url: savedFile.getUrl()
+        });
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      teacher: teacherName,
+      folderId: targetSubFolder.getId(),
+      files: results
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet() {
+  return HtmlService.createHtmlOutput("<h3>Google Script Interface is Active</h3><p>Server-side school integration ready.</p>");
+}`}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end items-center gap-4">
+              <span className="text-[10px] text-slate-400 italic">Version 1.0 (Manual Sync Protocol)</span>
+              <button
+                onClick={() => setShowScriptModal(false)}
+                className="px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold border-none cursor-pointer hover:bg-slate-800 transition-colors"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

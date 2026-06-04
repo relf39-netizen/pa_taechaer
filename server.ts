@@ -1422,11 +1422,17 @@ app.post("/api/admin/teachers/set-school-admin", (req, res) => {
     return res.status(400).json({ success: false, message: "ครูท่านนี้ไม่ได้อยู่ในรหัสโรงเรียน SMISS ที่เลือกระบุ" });
   }
 
-  // Update role
+  // Update role and automatically approve if becoming an admin
   teacher.role = makeAdmin ? "school_admin" : (teacher.position === "ผู้อำนวยการโรงเรียน" ? "director" : "teacher");
+  if (makeAdmin) {
+    teacher.status = "approved";
+  }
   
   if (localDB.teacherDataList[teacher.id]) {
     localDB.teacherDataList[teacher.id].teacher.role = teacher.role;
+    if (makeAdmin) {
+      localDB.teacherDataList[teacher.id].teacher.status = "approved";
+    }
   }
 
   // Also update school admin designation if designated as school admin
