@@ -57,17 +57,18 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const gasCode = `/**
- * Google Apps Script for School File Storage Integration (VERSION 3.5 - STABLE)
+ * Google Apps Script for School File Storage Integration (VERSION 3.6 - STABLE)
  * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ/ไฟล์อื่นๆ) และสำรองข้อมูลคุณครู (JSON)
  * อัปเดตล่าสุด: ${new Date().toLocaleDateString('th-TH')}
  * 
- * วิธีแก้ไขปัญหา "ไม่ได้รับอนุญาตให้เข้าถึง (Access Denied)":
- * 1. ไปที่เมนู "Deploy" -> "New Deployment" (ห้ามเลือก Edit อันเดิม)
- * 2. ใครที่มีสิทธิ์เข้าใช้งานเลือกเป็น "Anyone"
- * 3. กด Deploy และกดยอมรับสิทธิ์ (Authorize) ให้ครบถ้วน
+ * ⚠️ วิธีแก้ไขปัญหา "ไม่ได้รับอนุญาตให้เข้าถึง (Access Denied: DriveApp)":
+ * 1. ในหน้าสคริปต์นี้ ให้เลือกเมนู "Deployment" -> "New Deployment" (ห้ามกด Edit อันเดิม)
+ * 2. ช่อง "Execute as" ต้องเลือกเป็น "Me" (บัญชีของคุณ)
+ * 3. ช่อง "Who has access" ต้องเลือกเป็น "Anyone" (ทุกคน)
+ * 4. กด "Deploy" -> จะมีปุ่ม "Authorize Access" สีน้ำเงินขึ้นมา ให้กดเข้าไป
+ * 5. เลือกบัญชี Google ของคุณ -> กด "Advanced" (ขั้นสูง) -> กด "Go to... (unsafe)"
+ * 6. กด "Allow" (อนุญาต) เพื่อยืนยันสิทธิ์เป็นครั้งสุดท้าย
  */
-
-// Force scope detection: DriveApp.getFiles();
 
 function doPost(e) {
   var JSON_RESPONSE = function(data) {
@@ -77,22 +78,21 @@ function doPost(e) {
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน PostData" });
+      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน Request Body" });
     }
 
     var requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
     var folderId = requestData.folderId;
     
-    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ Google Drive (folderId)");
+    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ (Missing folderId)");
     
     var parentFolder;
     try {
       parentFolder = DriveApp.getFolderById(folderId);
-      // ทดสอบสิทธิ์การอ่านเบื้องต้น
       parentFolder.getName();
     } catch(fErr) {
-      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือยังไม่ได้แชร์โฟลเดอร์ให้ 'ทุกคนที่มีลิงก์' (Anyone with the link)");
+      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือคุณไม่ได้แชร์โฟลเดอร์ให้ 'Anyone with the link'");
     }
 
     // 1. ACTION: UPLOAD FILE
@@ -107,26 +107,17 @@ function doPost(e) {
       
       if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ใน Request");
       
-      var fileBytes;
-      try {
-        fileBytes = Utilities.base64Decode(rawData);
-      } catch(bErr) {
-        throw new Error("การถอดรหัส Base64 ล้มเหลว (Decoding Error)");
-      }
-
+      var fileBytes = Utilities.base64Decode(rawData);
       var contentType = requestData.contentType || "application/octet-stream";
-      
-      // ส่วนที่มักจะติดสิทธิ์ "Access Denied" คือการสร้างโฟลเดอร์และไฟล์
       var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
+      
       var blob = Utilities.newBlob(fileBytes, contentType, fileName);
       var file = teacherFolder.createFile(blob);
       
-      // ตั้งค่าแชร์ไฟล์ (สำคัญมากเพื่อให้แสดงผลบนหน้าเว็บได้)
       try {
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch(e) {
-        // บางครั้งโดเมนโรงเรียนอาจล็อกการแชร์ ให้ข้ามไป
-        console.warn("Could not set public sharing: " + e.toString());
+      } catch(shareErr) {
+        console.warn("Sharing failed: " + shareErr.toString());
       }
       
       return JSON_RESPONSE({
@@ -137,7 +128,7 @@ function doPost(e) {
       });
     }
     
-    // 2. ACTION: SAVE TEACHER DATA (JSON BACKUP)
+    // 2. ACTION: SAVE TEACHER DATA
     if (action === "saveTeacherData") {
       var teacherId = requestData.teacherId;
       var teacherName = requestData.teacherName || "Teacher";
@@ -168,12 +159,12 @@ function doPost(e) {
       });
     }
 
-    return JSON_RESPONSE({ success: false, error: "ไม่พบ Action '" + action + "' ในสคริปต์" });
+    return JSON_RESPONSE({ success: false, error: "Action '" + action + "' not recognized." });
 
   } catch (error) {
     var errorMsg = error.toString();
-    if (errorMsg.indexOf("DriveApp") > -1) {
-      errorMsg += " (คำแนะนำ: เข้าไปที่ Google Apps Script แล้วกด Deploy -> New Deployment เพื่อยืนยันสิทธิ์ใหม่)";
+    if (errorMsg.indexOf("DriveApp") > -1 || errorMsg.indexOf("Access") > -1) {
+      errorMsg = "🔴 สิทธิ์ไม่เพียงพอ: คุณต้องไปที่ Apps Script แล้วกด 'Deploy' -> 'New Deployment' อีกครั้งเพื่อยืนยันสิทธิ์เข้าถึง Drive (ห้ามกด Edit อันเดิม)";
     }
     return JSON_RESPONSE({ success: false, error: "GAS Error: " + errorMsg });
   }
@@ -185,12 +176,12 @@ function getOrCreateSubFolder(parent, name) {
     if (subFolders.hasNext()) return subFolders.next();
     return parent.createFolder(name);
   } catch(e) {
-    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์: " + e.toString());
+    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์ย่อย: " + e.toString());
   }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity v3.5 - Connected")
+  return ContentService.createTextOutput("School Drive Connectivity v3.6 - Operational")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 

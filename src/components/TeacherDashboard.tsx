@@ -10,11 +10,9 @@ import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } 
 import PublicProfile from "./PublicProfile";
 
 const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
- * Google Apps Script for School File Storage Integration (VERSION 3.5 - STABLE)
+ * Google Apps Script for School File Storage Integration (VERSION 3.6 - STABLE)
  * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ/ไฟล์อื่นๆ) และสำรองข้อมูลคุณครู (JSON)
  */
-
-// Force scope detection: DriveApp.getFiles();
 
 function doPost(e) {
   var JSON_RESPONSE = function(data) {
@@ -24,21 +22,21 @@ function doPost(e) {
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน PostData" });
+      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน Request Body" });
     }
 
     var requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
     var folderId = requestData.folderId;
     
-    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ Google Drive (folderId)");
+    if (!folderId) throw new Error("ไม่พบรหัสโฟลเดอร์ (Missing folderId)");
     
     var parentFolder;
     try {
       parentFolder = DriveApp.getFolderById(folderId);
       parentFolder.getName();
     } catch(fErr) {
-      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือยังไม่ได้แชร์โฟลเดอร์ให้เป็น 'Anyone with the link'");
+      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือคุณไม่ได้แชร์โฟลเดอร์ให้ 'Anyone with the link'");
     }
 
     // 1. ACTION: UPLOAD FILE
@@ -62,8 +60,8 @@ function doPost(e) {
       
       try {
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch(e) {
-        console.warn("Sharing failed: " + e.toString());
+      } catch(shareErr) {
+        console.warn("Sharing failed: " + shareErr.toString());
       }
       
       return JSON_RESPONSE({
@@ -93,7 +91,7 @@ function doPost(e) {
       
       return JSON_RESPONSE({ 
         success: true, 
-        message: "Backup completed for " + teacherName 
+        message: "สำรองข้อมูลสำเร็จสำหรับ " + teacherName 
       });
     }
 
@@ -109,8 +107,8 @@ function doPost(e) {
 
   } catch (error) {
     var errorMsg = error.toString();
-    if (errorMsg.indexOf("DriveApp") > -1) {
-      errorMsg += " (คำแนะนำ: เข้าไปที่ Google Apps Script แล้วกด Deploy -> New Deployment เพื่อยืนยันสิทธิ์ใหม่)";
+    if (errorMsg.indexOf("DriveApp") > -1 || errorMsg.indexOf("Access") > -1) {
+      errorMsg = "🔴 สิทธิ์ไม่เพียงพอ: คุณต้องไปที่ Apps Script แล้วกด 'Deploy' -> 'New Deployment' อีกครั้งเพื่อยืนยันสิทธิ์เข้าถึง Drive (ห้ามกด Edit อันเดิม)";
     }
     return JSON_RESPONSE({ success: false, error: "GAS Error: " + errorMsg });
   }
@@ -122,12 +120,12 @@ function getOrCreateSubFolder(parent, name) {
     if (subFolders.hasNext()) return subFolders.next();
     return parent.createFolder(name);
   } catch(e) {
-    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์: " + e.toString());
+    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์ย่อย: " + e.toString());
   }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity v3.5 - Operational")
+  return ContentService.createTextOutput("School Drive Connectivity v3.6 - Operational")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
