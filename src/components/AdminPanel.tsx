@@ -57,10 +57,17 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const gasCode = `/**
- * Google Apps Script for School File Storage Integration (VERSION 3.0 - STABLE)
+ * Google Apps Script for School File Storage Integration (VERSION 3.5 - STABLE)
  * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ/ไฟล์อื่นๆ) และสำรองข้อมูลคุณครู (JSON)
  * อัปเดตล่าสุด: ${new Date().toLocaleDateString('th-TH')}
+ * 
+ * วิธีแก้ไขปัญหา "ไม่ได้รับอนุญาตให้เข้าถึง (Access Denied)":
+ * 1. ไปที่เมนู "Deploy" -> "New Deployment" (ห้ามเลือก Edit อันเดิม)
+ * 2. ใครที่มีสิทธิ์เข้าใช้งานเลือกเป็น "Anyone"
+ * 3. กด Deploy และกดยอมรับสิทธิ์ (Authorize) ให้ครบถ้วน
  */
+
+// Force scope detection: DriveApp.getFiles();
 
 function doPost(e) {
   var JSON_RESPONSE = function(data) {
@@ -70,7 +77,7 @@ function doPost(e) {
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return JSON_RESPONSE({ success: false, error: "No post data received" });
+      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน PostData" });
     }
 
     var requestData = JSON.parse(e.postData.contents);
@@ -82,11 +89,13 @@ function doPost(e) {
     var parentFolder;
     try {
       parentFolder = DriveApp.getFolderById(folderId);
+      // ทดสอบสิทธิ์การอ่านเบื้องต้น
+      parentFolder.getName();
     } catch(fErr) {
-      throw new Error("ไม่สามารถเข้าถึงโฟลเดอร์ได้: เช็ค Folder ID หรือลืมแชร์โฟลเดอร์ให้เป็น 'Anyone with the link' หรือยัง?");
+      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือยังไม่ได้แชร์โฟลเดอร์ให้ 'ทุกคนที่มีลิงก์' (Anyone with the link)");
     }
 
-    // 1. ACTION: UPLOAD FILE (Generic) 
+    // 1. ACTION: UPLOAD FILE
     if (action === "uploadFile" || action === "uploadImage") {
       var teacherId = requestData.teacherId || "General";
       var fileName = requestData.fileName || ("file_" + Date.now());
@@ -96,29 +105,35 @@ function doPost(e) {
         rawData = rawData.split(",")[1];
       }
       
-      if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ในคำร้องขอ");
+      if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ใน Request");
       
       var fileBytes;
       try {
         fileBytes = Utilities.base64Decode(rawData);
       } catch(bErr) {
-        throw new Error("ไม่สามารถถอดรหัสไฟล์ได้ (Base64 Decode Failed)");
+        throw new Error("การถอดรหัส Base64 ล้มเหลว (Decoding Error)");
       }
 
       var contentType = requestData.contentType || "application/octet-stream";
-      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
       
+      // ส่วนที่มักจะติดสิทธิ์ "Access Denied" คือการสร้างโฟลเดอร์และไฟล์
+      var teacherFolder = getOrCreateSubFolder(parentFolder, teacherId);
       var blob = Utilities.newBlob(fileBytes, contentType, fileName);
       var file = teacherFolder.createFile(blob);
       
-      // ตั้งค่าแชร์ไฟล์อัตโนมัติ (Anyone with the link can view)
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      // ตั้งค่าแชร์ไฟล์ (สำคัญมากเพื่อให้แสดงผลบนหน้าเว็บได้)
+      try {
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch(e) {
+        // บางครั้งโดเมนโรงเรียนอาจล็อกการแชร์ ให้ข้ามไป
+        console.warn("Could not set public sharing: " + e.toString());
+      }
       
       return JSON_RESPONSE({
         success: true,
         fileId: file.getId(),
         fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId(),
-        url: "https://lh3.googleusercontent.com/d/" + file.getId() // สำหรับความเข้ากันได้
+        url: "https://lh3.googleusercontent.com/d/" + file.getId()
       });
     }
     
@@ -149,25 +164,33 @@ function doPost(e) {
     if (action === "testConnection") {
       return JSON_RESPONSE({ 
         success: true, 
-        message: "เชื่อมต่อกับ Google Apps Script สำเร็จ (Tested Folder: " + parentFolder.getName() + ")" 
+        message: "เชื่อมต่อสำเร็จ! (เข้าถึงโฟลเดอร์: " + parentFolder.getName() + ")" 
       });
     }
 
-    return JSON_RESPONSE({ success: false, error: "ไม่พบคำสั่ง (Action) '" + action + "' ในระบบสคริปต์" });
+    return JSON_RESPONSE({ success: false, error: "ไม่พบ Action '" + action + "' ในสคริปต์" });
 
   } catch (error) {
-    return JSON_RESPONSE({ success: false, error: "GAS Error: " + error.toString() });
+    var errorMsg = error.toString();
+    if (errorMsg.indexOf("DriveApp") > -1) {
+      errorMsg += " (คำแนะนำ: เข้าไปที่ Google Apps Script แล้วกด Deploy -> New Deployment เพื่อยืนยันสิทธิ์ใหม่)";
+    }
+    return JSON_RESPONSE({ success: false, error: "GAS Error: " + errorMsg });
   }
 }
 
 function getOrCreateSubFolder(parent, name) {
-  var subFolders = parent.getFoldersByName(name);
-  if (subFolders.hasNext()) return subFolders.next();
-  return parent.createFolder(name);
+  try {
+    var subFolders = parent.getFoldersByName(name);
+    if (subFolders.hasNext()) return subFolders.next();
+    return parent.createFolder(name);
+  } catch(e) {
+    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์: " + e.toString());
+  }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity v3.0 - Operational")
+  return ContentService.createTextOutput("School Drive Connectivity v3.5 - Connected")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
@@ -875,6 +898,20 @@ function doGet(e) {
                     ๒. การตั้งค่าสิทธิ์ <strong>"Who has access"</strong> ต้องเลือกเป็น <strong>"Anyone"</strong> เท่านั้น<br />
                     ๓. หากหน้าจอค้างโค้ดเดิม ให้กด <strong>Ctrl + F5</strong> เพื่อรีเฟรชเบราว์เซอร์
                   </p>
+                </div>
+
+                <div className="p-4 bg-amber-900/30 border border-amber-500/30 rounded-xl space-y-3 mt-4 text-amber-200">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-xs uppercase tracking-wider">วิธีแก้ปัญหา: สิทธิ์การเข้าถึง (Access Denied)</span>
+                  </div>
+                  <ul className="text-[10px] space-y-1.5 list-disc pl-4 leading-relaxed opacity-90">
+                    <li>ไปที่ Apps Script Editor กด <strong>Deploy</strong> &gt; <strong>New Deployment</strong></li>
+                    <li><em>ห้ามกด Edit อันเดิม</em> ให้สร้างใหม่เสมอเพื่อรีเซ็ตสิทธิ์</li>
+                    <li>เลือกสิทธิ์ "Who has access" เป็น <strong>Anyone</strong> (ทุกคน)</li>
+                    <li>กด Deploy และยืนยัน <strong>"Authorize"</strong> (ยอมรับสิทธิ์) ให้ครบ</li>
+                    <li>นำ Web App URL ที่ได้ใหม่ มาอัปเดตในระบบ</li>
+                  </ul>
                 </div>
 
                 <div className="p-4 bg-slate-900 rounded-xl border border-slate-700 space-y-3 mt-4">

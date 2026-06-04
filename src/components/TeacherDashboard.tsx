@@ -10,9 +10,11 @@ import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } 
 import PublicProfile from "./PublicProfile";
 
 const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
- * Google Apps Script for School File Storage Integration (VERSION 3.0 - STABLE)
+ * Google Apps Script for School File Storage Integration (VERSION 3.5 - STABLE)
  * รองรับ: อัปโหลดหลักฐาน (PDF/รูปภาพ/ไฟล์อื่นๆ) และสำรองข้อมูลคุณครู (JSON)
  */
+
+// Force scope detection: DriveApp.getFiles();
 
 function doPost(e) {
   var JSON_RESPONSE = function(data) {
@@ -22,7 +24,7 @@ function doPost(e) {
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return JSON_RESPONSE({ success: false, error: "No post data received" });
+      return JSON_RESPONSE({ success: false, error: "ไม่มีข้อมูลส่งมาใน PostData" });
     }
 
     var requestData = JSON.parse(e.postData.contents);
@@ -34,8 +36,9 @@ function doPost(e) {
     var parentFolder;
     try {
       parentFolder = DriveApp.getFolderById(folderId);
+      parentFolder.getName();
     } catch(fErr) {
-      throw new Error("ไม่สามารถเข้าถึงโฟลเดอร์ได้: เช็ค Folder ID หรือลืมแชร์โฟลเดอร์ให้เป็น 'Anyone with the link' หรือยัง?");
+      throw new Error("เข้าถึงโฟลเดอร์ไม่ได้: รหัสผิด หรือยังไม่ได้แชร์โฟลเดอร์ให้เป็น 'Anyone with the link'");
     }
 
     // 1. ACTION: UPLOAD FILE
@@ -48,7 +51,7 @@ function doPost(e) {
         rawData = rawData.split(",")[1];
       }
       
-      if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ในคำร้องขอ");
+      if (!rawData) throw new Error("ไม่พบข้อมูลไฟล์ (Base64) ใน Request");
       
       var fileBytes = Utilities.base64Decode(rawData);
       var contentType = requestData.contentType || "application/octet-stream";
@@ -57,7 +60,11 @@ function doPost(e) {
       var blob = Utilities.newBlob(fileBytes, contentType, fileName);
       var file = teacherFolder.createFile(blob);
       
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      try {
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch(e) {
+        console.warn("Sharing failed: " + e.toString());
+      }
       
       return JSON_RESPONSE({
         success: true,
@@ -94,25 +101,33 @@ function doPost(e) {
     if (action === "testConnection") {
       return JSON_RESPONSE({ 
         success: true, 
-        message: "เชื่อมต่อกับ Google Apps Script สำเร็จ (Tested Folder: " + parentFolder.getName() + ")" 
+        message: "เชื่อมต่อสำเร็จ! (เข้าถึงโฟลเดอร์: " + parentFolder.getName() + ")" 
       });
     }
 
     return JSON_RESPONSE({ success: false, error: "Action '" + action + "' not recognized." });
 
   } catch (error) {
-    return JSON_RESPONSE({ success: false, error: "GAS Error: " + error.toString() });
+    var errorMsg = error.toString();
+    if (errorMsg.indexOf("DriveApp") > -1) {
+      errorMsg += " (คำแนะนำ: เข้าไปที่ Google Apps Script แล้วกด Deploy -> New Deployment เพื่อยืนยันสิทธิ์ใหม่)";
+    }
+    return JSON_RESPONSE({ success: false, error: "GAS Error: " + errorMsg });
   }
 }
 
 function getOrCreateSubFolder(parent, name) {
-  var subFolders = parent.getFoldersByName(name);
-  if (subFolders.hasNext()) return subFolders.next();
-  return parent.createFolder(name);
+  try {
+    var subFolders = parent.getFoldersByName(name);
+    if (subFolders.hasNext()) return subFolders.next();
+    return parent.createFolder(name);
+  } catch(e) {
+    throw new Error("สิทธิ์ไม่พอในการสร้างโฟลเดอร์: " + e.toString());
+  }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("School Drive Connectivity v3.0 - Operational")
+  return ContentService.createTextOutput("School Drive Connectivity v3.5 - Operational")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 
