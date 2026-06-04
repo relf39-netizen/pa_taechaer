@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { 
   User, Shield, Landmark, School, Trash2, CheckCircle2, 
-  ExternalLink, Code, Download, Copy, Check, Terminal, FileCode, AlertCircle
+  ExternalLink, Code, Download, Copy, Check, Terminal, FileCode, AlertCircle, Cloud, LayoutGrid
 } from "lucide-react";
 import { Teacher } from "../types";
 
@@ -14,7 +14,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schools, setSchools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql">("teachers");
+  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql" | "gas">("teachers");
   const [selectedSchoolCode, setSelectedSchoolCode] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -23,6 +23,52 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [windowsScript, setWindowsScript] = useState("");
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedGas, setCopiedGas] = useState(false);
+
+  const gasCode = `/**
+ * Google Apps Script for School File Storage Integration
+ * ใช้งานเพื่อรับไฟล์จากระบบและบันทึกลงใน Google Drive ของโรงเรียน
+ * วิธีใช้งาน:
+ * 1. สร้าง Google Apps Script ใหม่
+ * 2. วางโค้ดนี้ และกด Deploy เป็น Web App
+ * 3. เลือกสิทธิ์การเข้าถึงเป็น 'ทุกคน' (Anyone)
+ * 4. นำ Web App URL มาใส่ในตั้งค่าโรงเรียน
+ */
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var folderId = payload.folderId; 
+    var fileName = payload.fileName;
+    var fileData = payload.fileData; 
+    var contentType = payload.contentType;
+
+    var folder = DriveApp.getFolderById(folderId);
+    var decodedData = Utilities.base64Decode(fileData);
+    var blob = Utilities.newBlob(decodedData, contentType, fileName);
+    var file = folder.createFile(blob);
+
+    var result = {
+      success: true,
+      fileId: file.getId(),
+      fileUrl: file.getUrl()
+    };
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("Google Drive storage service is active.")
+    .setMimeType(ContentService.MimeType.TEXT);
+}`;
 
   const fetchTeachers = async () => {
     setIsLoading(true);
@@ -211,6 +257,13 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
               id="subtab-mysql"
             >
               คู่มือและสคริปต์ MySQL / Windows Setup
+            </button>
+            <button
+              onClick={() => setActiveSubTab("gas")}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg border-none cursor-pointer transition-colors ${activeSubTab === "gas" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              id="subtab-gas"
+            >
+              ตั้งค่า Google Drive (School Storage)
             </button>
           </div>
 
@@ -675,6 +728,89 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
             </div>
 
+          </div>
+        )}
+
+        {/* TAB 4: GOOGLE APPS SCRIPT FOR GOOGLE DRIVE */}
+        {activeSubTab === "gas" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col space-y-4">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900">การเชื่อมต่อ Google Drive</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                  โค้ดนี้จะช่วยให้ระบบของแต่ละโรงเรียนสามารถเก็บไฟล์งาน (PDF/รูปภาพ/คลิป) ลงใน Google Drive ของโรงเรียนได้โดยตรง
+                </p>
+              </div>
+
+              <div className="space-y-4.5 text-xs">
+                <div className="flex border-l-4 border-sky-500 pl-3.5">
+                  <div>
+                    <strong className="block text-slate-800">๑. สร้างโครงการใน Google Apps Script</strong>
+                    <span className="text-slate-500 text-[11px]">เข้าสู่ระบบด้วย Gmail โรงเรียน แล้วสร้างโครงการใหม่ที่ <a href="https://script.google.com" target="_blank" className="text-sky-600 underline">script.google.com</a></span>
+                  </div>
+                </div>
+
+                <div className="flex border-l-4 border-sky-500 pl-3.5">
+                  <div>
+                    <strong className="block text-slate-800">๒. วางโค้ดและเผยแพร่ (Deploy)</strong>
+                    <span className="text-slate-500 text-[11px]">คัดลอกโค้ดด้านขวาไปวาง แล้วเลือก Deploy &gt; New Deployment เป็น "Web App" โดยตั้งค่าการเข้าถึงเป็น "Anyone"</span>
+                  </div>
+                </div>
+
+                <div className="flex border-l-4 border-sky-500 pl-3.5">
+                  <div>
+                    <strong className="block text-slate-800">๓. นำ URL มากำหนดค่า</strong>
+                    <span className="text-slate-500 text-[11px]">นำ Web App URL ที่ได้ไปตั้งค่าในระบบของ Admin โรงเรียน เพื่อให้ระบบเริ่มส่งไฟล์ไปยัง Drive ทันที</span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-4 h-4 text-amber-600" />
+                    <span className="font-bold text-amber-900">ข้อแนะนำสำหรับแอดมิน:</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    โรงเรียนควรใช้ Gmail บัญชีกลางของโรงเรียนเพื่อความต่อเนื่องในการจัดเก็บ และควรสร้างโฟลเดอร์แยกไว้สำหรับบันทึกงานโดยเฉพาะ
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-250 flex flex-col space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold font-sans text-slate-700 flex items-center gap-2">
+                    <LayoutGrid className="w-4 h-4 text-sky-500" />
+                    Google Apps Script (Code.gs)
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(gasCode);
+                      setCopiedGas(true);
+                      setTimeout(() => setCopiedGas(false), 2000);
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border-none cursor-pointer"
+                  >
+                    {copiedGas ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        คัดลอกแล้ว!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        คัดลอกโค้ด
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="relative group">
+                  <pre className="p-5 bg-slate-900 text-slate-300 font-mono text-[10.5px] leading-relaxed rounded-xl overflow-x-auto max-h-[450px]">
+                    {gasCode}
+                  </pre>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
