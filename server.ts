@@ -60,7 +60,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE_PATH = getWriteableDbPath();
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Helper to generate the default indicators for standard OBEC PA Part 1
 function createDefaultIndicators(): Record<string, PAIndicator> {

@@ -27,17 +27,24 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const gasCode = `/**
  * Google Apps Script for School File Storage Integration
- * ใช้งานเพื่อรับไฟล์จากระบบและบันทึกลงใน Google Drive ของโรงเรียน
- * วิธีใช้งาน:
- * 1. สร้าง Google Apps Script ใหม่
- * 2. วางโค้ดนี้ และกด Deploy เป็น Web App
- * 3. เลือกสิทธิ์การเข้าถึงเป็น 'ทุกคน' (Anyone)
- * 4. นำ Web App URL มาใส่ในตั้งค่าโรงเรียน
+ * สำหรับรับไฟล์จากระบบ PA School และบันทึกลงใน Google Drive
  */
 
 function doPost(e) {
+  var JSON_RESPONSE = function(data) {
+    return ContentService.createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  };
+
   try {
-    var payload = JSON.parse(e.postData.contents);
+    // กำนดให้รับข้อมูลได้ทั้งแบบ JSON direct และแบบ String จาก text/plain
+    var payload;
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch (parseError) {
+      return JSON_RESPONSE({ success: false, error: "Invalid JSON payload" });
+    }
+
     var folderId = payload.folderId; 
     var fileName = payload.fileName;
     var fileData = payload.fileData; 
@@ -48,25 +55,22 @@ function doPost(e) {
     var blob = Utilities.newBlob(decodedData, contentType, fileName);
     var file = folder.createFile(blob);
 
-    var result = {
+    return JSON_RESPONSE({
       success: true,
       fileId: file.getId(),
-      fileUrl: file.getUrl()
-    };
-
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
+      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() // Direct link format
+    });
 
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
+    return JSON_RESPONSE({
       success: false,
       error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    });
   }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("Google Drive storage service is active.")
+  return ContentService.createTextOutput("School Drive Service is Online.")
     .setMimeType(ContentService.MimeType.TEXT);
 }`;
 

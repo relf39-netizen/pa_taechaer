@@ -562,49 +562,40 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
       setIsUploading(true);
       try {
-        let finalUrl = uploadFileBase64;
+        let finalUrl = "";
         let driveFileId = "";
         
-        // If Google Apps Script Web App is connected, upload it to Google Drive!
-        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
-          const payload = {
-            action: "uploadFile", // Use more generic action
-            folderId: schoolDriveConfig.driveFolderId,
-            teacherId: data.teacher.id,
-            fileName: `${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
-            fileData: uploadFileBase64.split(",")[1], // Just bytes from base64
-            contentType: uploadFileType || "application/octet-stream"
-          };
+        // REQUIRE Google Drive for file/image storage to avoid 413 server errors
+        if (!schoolDriveConfig?.gasWebUrl || !schoolDriveConfig?.driveFolderId) {
+          triggerToast("error", "ไม่สามารถอัปโหลดไฟล์ได้: โปรดแจ้งแอดมินให้ตั้งค่าเชื่อมต่อ Google Drive ของโรงเรียนก่อน");
+          setIsUploading(false);
+          return;
+        }
 
-          const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
-            method: "POST",
-            mode: 'no-cors', // Many GAS setups require this for direct cross-origin posts
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          
-          // Note: with no-cors we can't see the response body. 
-          // Suggesting admin use the updated script which supports both methods.
-          // Since we can't get the result back easily with no-cors, we'll try standard fetch first.
-          
-          try {
-            const uploadResStandard = await fetch(schoolDriveConfig.gasWebUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-            const uploadData = await uploadResStandard.json();
-            if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
-              finalUrl = uploadData.url || uploadData.fileUrl;
-              driveFileId = uploadData.fileId;
-              triggerToast("success", "อัปโหลดไฟล์ไปยัง Google Drive ของโรงเรียนเรียบร้อยแล้ว");
-            }
-          } catch (e) {
-            // Fallback or retry logic if needed
-            console.warn("Retrying with no-cors or assuming success based on config...");
-          }
+        const payload = {
+          action: "uploadFile",
+          folderId: schoolDriveConfig.driveFolderId,
+          teacherId: data.teacher.id,
+          fileName: `${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
+          fileData: uploadFileBase64.split(",")[1],
+          contentType: uploadFileType || "application/octet-stream"
+        };
+
+        // Use text/plain to avoid CORS preflight (OPTIONS) request which GAS doesn't support
+        const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" }, 
+          body: JSON.stringify(payload)
+        });
+
+        const uploadData = await uploadRes.json();
+        
+        if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
+          finalUrl = uploadData.url || uploadData.fileUrl;
+          driveFileId = uploadData.fileId;
+          triggerToast("success", "อัปโหลดไฟล์ไปยัง Google Drive สำเร็จแล้ว");
         } else {
-          triggerToast("success", "เพิ่มหลักฐานลงแฟ้มข้อมูลสำเร็จ (แจ้งแอดมินเพื่อเชื่อมต่อ Google Drive ระบบจะได้จัดเก็บไฟล์ถาวร)");
+          throw new Error(uploadData.error || "Upload failed");
         }
 
         const newEvidence: EvidenceLink = {
@@ -621,7 +612,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         setUploadFileType("");
       } catch (err: any) {
         console.error("File upload error:", err);
-        triggerToast("error", "เกิดข้อผิดพลาดในการอัปโหลด กรุณาลองใหม่อีกครั้ง");
+        triggerToast("error", "การเชื่อมต่อ Google Drive ล้มเหลว: " + (err.message || "โปรดตรวจสอบการตั้งค่า Apps Script"));
       } finally {
         setIsUploading(false);
       }
@@ -714,34 +705,37 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
       setIsUploading(true);
       try {
-        let finalUrl = uploadFileBase64;
+        let finalUrl = "";
         let driveFileId = "";
         
-        if (schoolDriveConfig?.gasWebUrl && schoolDriveConfig?.driveFolderId) {
-          const payload = {
-            action: "uploadFile",
-            folderId: schoolDriveConfig.driveFolderId,
-            teacherId: data.teacher.id,
-            fileName: `Challenge_${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
-            fileData: uploadFileBase64.split(",")[1],
-            contentType: uploadFileType || "application/octet-stream"
-          };
+        if (!schoolDriveConfig?.gasWebUrl || !schoolDriveConfig?.driveFolderId) {
+          triggerToast("error", "ไม่สามารถอัปโหลดไฟล์ได้: โปรดแจ้งแอดมินให้ตั้งค่า Google Drive ก่อน");
+          setIsUploading(false);
+          return;
+        }
 
-          try {
-            const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-            const uploadData = await uploadRes.json();
-            if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
-              finalUrl = uploadData.url || uploadData.fileUrl;
-              driveFileId = uploadData.fileId;
-              triggerToast("success", "อัปโหลดไฟล์หลักฐานไปยัง Google Drive สำเร็จ");
-            }
-          } catch (e) {
-            console.warn("Retrying Challenge upload error...");
-          }
+        const payload = {
+          action: "uploadFile",
+          folderId: schoolDriveConfig.driveFolderId,
+          teacherId: data.teacher.id,
+          fileName: `Challenge_${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
+          fileData: uploadFileBase64.split(",")[1],
+          contentType: uploadFileType || "application/octet-stream"
+        };
+
+        const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+        
+        const uploadData = await uploadRes.json();
+        if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
+          finalUrl = uploadData.url || uploadData.fileUrl;
+          driveFileId = uploadData.fileId;
+          triggerToast("success", "อัปโหลดไฟล์หลักฐานไปยัง Google Drive สำเร็จ");
+        } else {
+          throw new Error(uploadData.error || "Upload failed");
         }
 
         const newEvidence: EvidenceLink = {
@@ -757,7 +751,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         setUploadFileBase64("");
         setUploadFileType("");
       } catch (err: any) {
-        triggerToast("error", "เกิดข้อผิดพลาดในการอัปโหลด กรุณาลองใหม่อีกครั้ง");
+        triggerToast("error", "เกิดข้อผิดพลาดในการอัปโหลด: " + (err.message || "โปรดตรวจสอบการตั้งค่า"));
       } finally {
         setIsUploading(false);
       }
