@@ -581,11 +581,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           contentType: uploadFileType || "application/octet-stream"
         };
 
-        // Use text/plain to avoid CORS preflight (OPTIONS) request which GAS doesn't support
-        const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
+        // Call our Server Proxy to handle the upload to GAS (FIXES CORS)
+        const uploadRes = await fetch("/api/proxy-gas", {
           method: "POST",
-          headers: { "Content-Type": "text/plain" }, 
-          body: JSON.stringify(payload)
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gasUrl: schoolDriveConfig.gasWebUrl,
+            payload: payload
+          })
         });
 
         const uploadData = await uploadRes.json();
@@ -723,10 +726,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           contentType: uploadFileType || "application/octet-stream"
         };
 
-        const uploadRes = await fetch(schoolDriveConfig.gasWebUrl, {
+        // Call our Server Proxy to handle the upload to GAS (FIXES CORS)
+        const uploadRes = await fetch("/api/proxy-gas", {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload)
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gasUrl: schoolDriveConfig.gasWebUrl,
+            payload: payload
+          })
         });
         
         const uploadData = await uploadRes.json();

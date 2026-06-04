@@ -63,6 +63,29 @@ const DB_FILE_PATH = getWriteableDbPath();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// PROXY ROUTE FOR GOOGLE APPS SCRIPT (FIXES CORS)
+app.post("/api/proxy-gas", async (req, res) => {
+  try {
+    const { gasUrl, payload } = req.body;
+    
+    if (!gasUrl) {
+      return res.status(400).json({ success: false, error: "Missing Google Apps Script URL" });
+    }
+
+    const response = await fetch(gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error: any) {
+    console.error("GAS Proxy Error:", error);
+    res.status(500).json({ success: false, error: "Failed to connect to Google Drive: " + error.message });
+  }
+});
+
 // Helper to generate the default indicators for standard OBEC PA Part 1
 function createDefaultIndicators(): Record<string, PAIndicator> {
   const indicators: Record<string, PAIndicator> = {};

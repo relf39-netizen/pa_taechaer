@@ -27,7 +27,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const gasCode = `/**
  * Google Apps Script for School File Storage Integration
- * สำหรับรับไฟล์จากระบบ PA School และบันทึกลงใน Google Drive
+ * สำหรับรับไฟล์จากระบบ PA School และบันทึกใน Google Drive
  */
 
 function doPost(e) {
@@ -37,14 +37,7 @@ function doPost(e) {
   };
 
   try {
-    // กำนดให้รับข้อมูลได้ทั้งแบบ JSON direct และแบบ String จาก text/plain
-    var payload;
-    try {
-      payload = JSON.parse(e.postData.contents);
-    } catch (parseError) {
-      return JSON_RESPONSE({ success: false, error: "Invalid JSON payload" });
-    }
-
+    var payload = JSON.parse(e.postData.contents);
     var folderId = payload.folderId; 
     var fileName = payload.fileName;
     var fileData = payload.fileData; 
@@ -58,7 +51,7 @@ function doPost(e) {
     return JSON_RESPONSE({
       success: true,
       fileId: file.getId(),
-      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() // Direct link format
+      fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId()
     });
 
   } catch (error) {
