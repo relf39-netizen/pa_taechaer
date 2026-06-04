@@ -4,7 +4,7 @@ import {
   User, School, Landmark, Phone, Globe, BookOpen, Clock, 
   CheckCircle2, Plus, Trash2, FileText, ExternalLink, Save, 
   Eye, Check, AlertCircle, Sparkles, LogOut, Code, Library,
-  Edit2, Camera, Image
+  Edit2, Camera, Image, Award
 } from "lucide-react";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 import PublicProfile from "./PublicProfile";
@@ -171,9 +171,13 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   // New Link temporary input state
   const [newLinkName, setNewLinkName] = useState("");
   const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkDescription, setNewLinkDescription] = useState("");
+  const [evidenceDisplayMode, setEvidenceDisplayMode] = useState<'activity' | 'certificate' | 'document' | 'general'>('general');
   const [evidenceType, setEvidenceType] = useState<"link" | "image" | "file">("link");
   const [uploadFileBase64, setUploadFileBase64] = useState("");
   const [uploadFileType, setUploadFileType] = useState("");
+  const [uploadFileBase64Secondary, setUploadFileBase64Secondary] = useState("");
+  const [uploadFileTypeSecondary, setUploadFileTypeSecondary] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [schoolDriveConfig, setSchoolDriveConfig] = useState<{ driveFolderId: string; gasWebUrl: string } | null>(null);
 
@@ -555,14 +559,17 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
     setIndLinks(ind?.evidenceLinks || []);
     setNewLinkName("");
     setNewLinkUrl("");
+    setNewLinkDescription("");
+    setEvidenceDisplayMode('general');
   };
 
   // Compress and convert file to Base64 (Supports both Image and PDF)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isSecondary: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploadFileType(file.type);
+    if (isSecondary) setUploadFileTypeSecondary(file.type);
+    else setUploadFileType(file.type);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -570,10 +577,9 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
       // If it's an image, we still want to compress it for efficiency
       if (file.type.startsWith("image/")) {
-        console.log("Image detected, starting compression...");
+        console.log(`Image ${isSecondary ? '2' : '1'} detected, starting compression...`);
         const img = document.createElement("img");
         img.onload = () => {
-          console.log("Image loaded on canvas, resizing...");
           const canvas = document.createElement("canvas");
           const MAX_WIDTH = 1000;
           const MAX_HEIGHT = 800;
@@ -599,19 +605,15 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
             const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
-            setUploadFileBase64(compressedBase64);
+            if (isSecondary) setUploadFileBase64Secondary(compressedBase64);
+            else setUploadFileBase64(compressedBase64);
           }
         };
         img.src = result;
       } else {
-        console.log("Non-image file detected (e.g. PDF), saving raw base64");
-        // For PDF or other files, just save the raw base64
-        setUploadFileBase64(result);
+        if (isSecondary) setUploadFileBase64Secondary(result);
+        else setUploadFileBase64(result);
       }
-    };
-    reader.onerror = (err) => {
-      console.error("FileReader error:", err);
-      triggerToast("error", "ไม่สามารถอ่านไฟล์ได้");
     };
     reader.readAsDataURL(file);
   };
@@ -627,11 +629,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         id: "ev-" + Date.now(),
         name: newLinkName.trim(),
         url: newLinkUrl.trim(),
+        description: newLinkDescription.trim(),
+        displayMode: evidenceDisplayMode,
         type: "link"
       };
       setIndLinks(prev => [...prev, newLink]);
       setNewLinkName("");
       setNewLinkUrl("");
+      setNewLinkDescription("");
     } else {
       // It is an image or a PDF file
       if (!newLinkName.trim()) {
@@ -647,61 +652,79 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       try {
         let finalUrl = "";
         let driveFileId = "";
+        let secondaryUrl = "";
+        let secondaryFileId = "";
         
-        // REQUIRE Google Drive for file/image storage to avoid 413 server errors
         if (!schoolDriveConfig?.gasWebUrl || !schoolDriveConfig?.driveFolderId) {
-          triggerToast("error", "ไม่สามารถอัปโหลดไฟล์ได้: โปรดแจ้งแอดมินให้ตั้งค่าเชื่อมต่อ Google Drive ของโรงเรียนก่อน");
+          triggerToast("error", "ไม่สามารถอัปโหลดไฟล์ได้: โปรดแจ้งแอดมินให้ตั้งค่าเชื่อมต่อ Drive ก่อน");
           setIsUploading(false);
           return;
         }
 
+        // Upload First File
         const payload = {
           action: "uploadFile",
           folderId: schoolDriveConfig.driveFolderId,
           teacherId: data.teacher.id,
-          fileName: `${newLinkName.trim()}_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
+          fileName: `${newLinkName.trim()}_1_${Date.now()}${uploadFileType === "application/pdf" ? ".pdf" : ".jpg"}`,
           fileData: uploadFileBase64.includes(",") ? uploadFileBase64.split(",")[1] : uploadFileBase64,
           contentType: uploadFileType || "application/octet-stream"
         };
 
-        console.log(`[Upload] Sending to proxy: ${newLinkName.trim()} (${uploadFileType})`);
-        
-        // Call our Server Proxy to handle the upload to GAS (FIXES CORS)
         const uploadRes = await fetch("/api/proxy-gas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            gasUrl: schoolDriveConfig.gasWebUrl,
-            payload: payload
-          })
+          body: JSON.stringify({ gasUrl: schoolDriveConfig.gasWebUrl, payload })
         });
 
         const uploadData = await uploadRes.json();
-        console.log("[Upload] Proxy Response:", uploadData);
-        
-        if (uploadData.success && (uploadData.url || uploadData.fileUrl)) {
+        if (uploadData.success) {
           finalUrl = uploadData.url || uploadData.fileUrl;
           driveFileId = uploadData.fileId;
-          triggerToast("success", "อัปโหลดไฟล์ไปยัง Google Drive สำเร็จแล้ว");
-        } else {
-          throw new Error(uploadData.error || uploadData.message || "Upload failed");
+        } else throw new Error(uploadData.error || "Upload 1 failed");
+
+        // Upload Second File if needed (Activity mode)
+        if (evidenceDisplayMode === 'activity' && uploadFileBase64Secondary) {
+          const payload2 = {
+            action: "uploadFile",
+            folderId: schoolDriveConfig.driveFolderId,
+            teacherId: data.teacher.id,
+            fileName: `${newLinkName.trim()}_2_${Date.now()}.jpg`,
+            fileData: uploadFileBase64Secondary.includes(",") ? uploadFileBase64Secondary.split(",")[1] : uploadFileBase64Secondary,
+            contentType: uploadFileTypeSecondary || "image/jpeg"
+          };
+          const uploadRes2 = await fetch("/api/proxy-gas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gasUrl: schoolDriveConfig.gasWebUrl, payload: payload2 })
+          });
+          const uploadData2 = await uploadRes2.json();
+          if (uploadData2.success) {
+            secondaryUrl = uploadData2.url || uploadData2.fileUrl;
+            secondaryFileId = uploadData2.fileId;
+          }
         }
 
         const newEvidence: EvidenceLink = {
           id: "ev-file-" + Date.now(),
           name: newLinkName.trim(), 
           url: finalUrl,
+          description: newLinkDescription.trim(),
+          secondaryUrl,
+          secondaryFileId,
+          displayMode: evidenceDisplayMode,
           type: evidenceType,
           fileId: driveFileId
         };
         
         setIndLinks(prev => [...prev, newEvidence]);
         setNewLinkName("");
+        setNewLinkDescription("");
         setUploadFileBase64("");
-        setUploadFileType("");
+        setUploadFileBase64Secondary("");
+        triggerToast("success", "เพิ่มหลักฐานเข้าสู่ระบบเรียบร้อยแล้ว");
       } catch (err: any) {
-        console.error("File upload error:", err);
-        triggerToast("error", "การเชื่อมต่อ Google Drive ล้มเหลว: " + (err.message || "โปรดตรวจสอบการตั้งค่า Apps Script"));
+        triggerToast("error", "การเชื่อมต่อล้มเหลว: " + err.message);
       } finally {
         setIsUploading(false);
       }
@@ -1371,8 +1394,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                         type="button"
                         onClick={() => {
                           setEvidenceType("link");
+                          setEvidenceDisplayMode('general');
                           setNewLinkName("");
-                          setUploadFileBase64("");
                         }}
                         className={`flex-1 min-w-[120px] py-2.5 font-bold rounded-xl text-[11px] cursor-pointer transition-all border-none flex items-center justify-center gap-2 ${
                           evidenceType === "link"
@@ -1380,34 +1403,54 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                             : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                         }`}
                       >
-                        <Globe className="w-3.5 h-3.5" />
-                        ลิงก์เอกสารอ้างอิง
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        เพิ่มลิงก์เว็บ/Drive
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           setEvidenceType("image");
+                          setEvidenceDisplayMode('activity');
+                          setNewLinkName("");
+                          setUploadFileBase64("");
+                          setUploadFileBase64Secondary("");
+                        }}
+                        className={`flex-1 min-w-[120px] py-2.5 font-bold rounded-xl text-[11px] cursor-pointer transition-all border-none flex items-center justify-center gap-2 ${
+                          evidenceDisplayMode === "activity"
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-200 scale-[1.02]"
+                            : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                        }`}
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        อัปโหลดภาพกิจกรรม (2 รูป)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEvidenceType("image");
+                          setEvidenceDisplayMode('certificate');
                           setNewLinkName("");
                           setUploadFileBase64("");
                         }}
                         className={`flex-1 min-w-[120px] py-2.5 font-bold rounded-xl text-[11px] cursor-pointer transition-all border-none flex items-center justify-center gap-2 ${
-                          evidenceType === "image"
-                            ? "bg-slate-900 text-white shadow-md shadow-slate-200 scale-[1.02]"
+                          evidenceDisplayMode === "certificate"
+                            ? "bg-amber-500 text-white shadow-md shadow-amber-200 scale-[1.02]"
                             : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                         }`}
                       >
-                        <Image className="w-3.5 h-3.5" />
-                        อัปโหลดรูปกิจกรรม
+                        <Award className="w-3.5 h-3.5" />
+                        อัปโหลดเกียรติบัตร
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           setEvidenceType("file");
+                          setEvidenceDisplayMode('document');
                           setNewLinkName("");
                           setUploadFileBase64("");
                         }}
                         className={`flex-1 min-w-[120px] py-2.5 font-bold rounded-xl text-[11px] cursor-pointer transition-all border-none flex items-center justify-center gap-2 ${
-                          evidenceType === "file"
+                          evidenceDisplayMode === "document"
                             ? "bg-slate-900 text-white shadow-md shadow-slate-200 scale-[1.02]"
                             : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                         }`}
@@ -1420,9 +1463,9 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                     {/* RENDER FORM DYNAMICALLY */}
                     {evidenceType === "link" ? (
                       <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                        <div className="md:col-span-4">
+                        <div className="md:col-span-3">
                           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                            ชื่อไฟล์/คำอธิบายประกอบหลักฐาน
+                            หัวข้อหลักฐาน
                           </label>
                           <input
                             type="text"
@@ -1432,9 +1475,21 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                             className="block w-full px-4 py-2.5 border border-slate-200 bg-white rounded-xl text-xs outline-none focus:border-blue-400 font-sans shadow-sm"
                           />
                         </div>
-                        <div className="md:col-span-6">
+                        <div className="md:col-span-4">
                           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                            ที่อยู่ลิงก์หลักฐานอ้างอิง (URL)
+                            รายละเอียดประกอบ
+                          </label>
+                          <input
+                            type="text"
+                            value={newLinkDescription}
+                            onChange={(e) => setNewLinkDescription(e.target.value)}
+                            placeholder="คำอธิบายสั้นๆ เกี่ยวกับหลักฐาน"
+                            className="block w-full px-4 py-2.5 border border-slate-200 bg-white rounded-xl text-xs outline-none focus:border-blue-400 font-sans shadow-sm"
+                          />
+                        </div>
+                        <div className="md:col-span-3">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            ที่อยู่ลิงก์ (URL)
                           </label>
                           <input
                             type="text"
@@ -1458,81 +1513,108 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                     ) : (
                       <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                          <div className="lg:col-span-7">
+                          <div className="lg:col-span-12">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                              ✍️ ชื่อหรือคำอธิบายหลักฐาน
+                              ✍️ หัวข้อหรือชื่อหลักฐาน <span className="text-blue-600">(ปรากฏหน้าแรก)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newLinkName}
+                              onChange={(e) => setNewLinkName(e.target.value)}
+                              placeholder="เช่น ใบประกาศรางวัลระดับเขต"
+                              className="block w-full px-4 py-2.5 border border-slate-200 bg-white rounded-xl text-xs outline-none focus:border-blue-400 font-sans shadow-sm mb-3"
+                            />
+                            
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                              📝 คำบรรยายรายละเอียด <span className="text-slate-400">(จะแสดงใน Pop-up ให้กรรมการอ่าน)</span>
                             </label>
                             <textarea
                               rows={3}
-                              value={newLinkName}
-                              onChange={(e) => setNewLinkName(e.target.value)}
-                              placeholder={evidenceType === "image" ? "อธิบายกิจกรรมที่ปรากฏในภาพ เช่น บรรยากาศการสอน เรื่อง... เมื่อวันที่..." : "ระบุชื่อไฟล์ หรือคำอธิบายประกอบเอกสารชุดนี้"}
+                              value={newLinkDescription}
+                              onChange={(e) => setNewLinkDescription(e.target.value)}
+                              placeholder={evidenceDisplayMode === "activity" ? "อธิบายกิจกรรมที่ปรากฏในภาพ เช่น บรรยากาศการสอน เรื่อง... เมื่อวันที่..." : "ระบุรายละเอียด หรือคำอธิบายประกอบเอกสารชุดนี้"}
                               className="block w-full px-4 py-3 border border-slate-200 bg-white rounded-xl text-xs leading-relaxed outline-none focus:border-blue-400 font-sans shadow-sm"
                             />
                           </div>
+                        </div>
 
-                          <div className="lg:col-span-5 flex flex-col justify-end">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex flex-col">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                              {evidenceType === "image" ? "📸 เลือกรูปภาพ (PNG, JPG)" : "📄 เลือกไฟล์เอกสาร (PDF)"}
+                              {evidenceDisplayMode === "activity" ? "📸 ภาพกิจกรรมที่ 1" : evidenceDisplayMode === "certificate" ? "🏆 ภาพเกียรติบัตร" : "📄 ไฟล์ PDF"}
                             </label>
-                            <div className="relative border-2 border-dashed border-slate-200 hover:border-blue-400 transition-colors rounded-2xl bg-white p-4 text-center cursor-pointer flex flex-col justify-center items-center gap-2 min-h-[100px]">
+                            <div className="relative border-2 border-dashed border-slate-200 hover:border-blue-400 transition-colors rounded-2xl bg-white p-4 text-center cursor-pointer flex flex-col justify-center items-center gap-2 min-h-[120px]">
                               <input
                                 type="file"
-                                accept={evidenceType === "image" ? "image/*" : ".pdf"}
-                                onChange={handleFileChange}
+                                accept={evidenceDisplayMode === "document" ? ".pdf" : "image/*"}
+                                onChange={(e) => handleFileChange(e, false)}
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                               />
                               {uploadFileBase64 ? (
-                                <>
-                                  <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full">
+                                <div className="space-y-1">
+                                  <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full w-fit mx-auto">
                                     <Check className="w-5 h-5" />
                                   </div>
-                                  <p className="text-[10px] font-bold text-emerald-600">เลือกไฟล์เรียบร้อยแล้ว!</p>
-                                  <p className="text-[8px] text-slate-400 font-mono truncate max-w-full italic px-2">Data ready for upload</p>
-                                </>
+                                  <p className="text-[10px] font-bold text-emerald-600 truncate max-w-[150px]">เลือกไฟล์แล้ว</p>
+                                </div>
                               ) : (
                                 <>
                                   <div className="bg-slate-100 text-slate-400 p-2 rounded-full">
                                     <Plus className="w-5 h-5" />
                                   </div>
-                                  <p className="text-[10px] font-bold text-slate-600">คลิกที่นี่เพื่อเลือกไฟล์</p>
-                                  <p className="text-[8px] text-slate-400">ขนาดแนะนำ: ไม่เกิน 5MB</p>
+                                  <p className="text-[10px] font-bold text-slate-600">คลิกเลือกไฟล์หลัก</p>
                                 </>
                               )}
                             </div>
                           </div>
+
+                          {evidenceDisplayMode === 'activity' && (
+                            <div className="flex flex-col">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                📸 ภาพกิจกรรมที่ 2 (แนะนำให้มี 2 ภาพ)
+                              </label>
+                              <div className="relative border-2 border-dashed border-slate-200 hover:border-blue-400 transition-colors rounded-2xl bg-white p-4 text-center cursor-pointer flex flex-col justify-center items-center gap-2 min-h-[120px]">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleFileChange(e, true)}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                                {uploadFileBase64Secondary ? (
+                                  <div className="space-y-1">
+                                    <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full w-fit mx-auto">
+                                      <Check className="w-5 h-5" />
+                                    </div>
+                                    <p className="text-[10px] font-bold text-emerald-600 truncate max-w-[150px]">เลือกภาพที่ 2 แล้ว</p>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="bg-slate-100 text-slate-400 p-2 rounded-full">
+                                      <Plus className="w-5 h-5" />
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-600">คลิกเลือกภาพสำรอง</p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Preview Box */}
-                        {uploadFileBase64 && (
-                          <div className="flex justify-center">
-                            {evidenceType === "image" ? (
-                              <div className="border border-slate-200 bg-slate-900 rounded-2xl overflow-hidden aspect-[16/9] w-full max-w-md relative shadow-lg">
-                                <img
-                                  src={uploadFileBase64}
-                                  alt="preview"
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-                                  <span className="text-[9px] text-white font-bold flex items-center gap-1.5">
-                                    <Image className="w-3 h-3" />
-                                    ตัวอย่างภาพที่จะอัปโหลด
-                                  </span>
-                                </div>
+                        {/* Preview Box Container */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                           {uploadFileBase64 && evidenceType === "image" && (
+                              <div className="border border-slate-200 bg-slate-900 rounded-2xl overflow-hidden aspect-[4/3] relative shadow-lg">
+                                <img src={uploadFileBase64} alt="preview 1" className="w-full h-full object-cover" />
+                                <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[8px] text-white">รูปหลัก</div>
                               </div>
-                            ) : (
-                              <div className="bg-white border border-slate-200 p-5 rounded-2xl flex items-center gap-4 w-full max-w-md shadow-sm">
-                                <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl">
-                                  <FileText className="w-8 h-8" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-bold text-slate-800 truncate">เอกสารพร้อมอัปโหลด</p>
-                                  <p className="text-[10px] text-slate-500 font-mono">Type: application/pdf</p>
-                                </div>
+                           )}
+                           {uploadFileBase64Secondary && (
+                              <div className="border border-slate-200 bg-slate-900 rounded-2xl overflow-hidden aspect-[4/3] relative shadow-lg">
+                                <img src={uploadFileBase64Secondary} alt="preview 2" className="w-full h-full object-cover" />
+                                <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[8px] text-white">รูปเสริม</div>
                               </div>
-                            )}
-                          </div>
-                        )}
+                           )}
+                        </div>
 
                         <div className="flex justify-end pt-2">
                           <button

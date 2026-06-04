@@ -41,10 +41,14 @@ export interface School {
 
 export interface EvidenceLink {
   id: string;
-  name: string; // ชื่อหลักฐาน (เช่น แผนการจัดการเรียนรู้, ภาพกิจกรรม, เกียรติบัตร)
-  url: string; // URL ลิงก์ (เช่น Google Drive, YouTube, Slideshare)
-  type?: 'link' | 'image' | 'file'; // ประเภทไฟล์ หลักฐาน (ลิงก์, รูปภาพ หรือ ไฟล์เอกสาร)
-  fileId?: string; // รหัสไฟล์จาก Google Drive (กรณีอัปโหลด)
+  name: string; // ชื่อหลักฐาน
+  url: string; // URL ลิงก์หลัก (ภาพที่ 1 หรือไฟล์)
+  type?: 'link' | 'image' | 'file';
+  fileId?: string; 
+  description?: string; // คำบรรยายเพิ่มเติมด้านบน
+  secondaryUrl?: string; // ภาพที่ 2 (สำหรับโหมดกิจกรรม)
+  secondaryFileId?: string;
+  displayMode?: 'activity' | 'certificate' | 'document' | 'general'; // รูปแบบการแสดงผล
 }
 
 export interface PAIndicator {

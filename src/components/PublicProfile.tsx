@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   User, School, Landmark, Phone, Globe, BookOpen, Clock, 
   CheckCircle2, FileText, ExternalLink, Sparkles, Award, 
-  Check, AlertCircle, ChevronDown, ChevronUp, Download, PlayCircle
+  Check, AlertCircle, ChevronDown, ChevronUp, Download, PlayCircle, X, Image as ImageIcon, FileCheck
 } from "lucide-react";
 import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, EvidenceLink } from "../types";
 
@@ -153,6 +153,15 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
 
   const [activeTab, setActiveTab] = useState<"part1" | "part2">("part1");
   const [openIndicatorId, setOpenIndicatorId] = useState<string | null>("1.1");
+
+  // Evidence Showcase Modal State
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceLink | null>(null);
+  const [showModal, setShowModal] = useState(false);
+
+  const handleOpenEvidence = (link: EvidenceLink) => {
+    setSelectedEvidence(link);
+    setShowModal(true);
+  };
 
   // Fetch teacher data by slug if not already provided
   useEffect(() => {
@@ -486,19 +495,30 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                             ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {ind.evidenceLinks.map((link) => (
-                                  <a
+                                  <button
                                     key={link.id}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-amber-400 text-slate-800 rounded-xl hover:shadow-sm transition-all text-xs"
+                                    onClick={() => handleOpenEvidence(link)}
+                                    className="flex items-center justify-between p-3.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-800 rounded-xl hover:shadow-md transition-all text-xs group cursor-pointer text-left w-full"
                                   >
-                                    <div className="flex items-center gap-2 max-w-[85%]">
-                                      {getSmartIcon(link.url)}
-                                      <span className="font-semibold truncate">{link.name}</span>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 transition-colors">
+                                        {link.displayMode === 'activity' ? <ImageIcon className="w-4 h-4 text-blue-600" /> : 
+                                         link.displayMode === 'certificate' ? <Award className="w-4 h-4 text-amber-600" /> :
+                                         link.displayMode === 'document' || link.url.toLowerCase().endsWith('.pdf') ? <FileText className="w-4 h-4 text-rose-600" /> :
+                                         getSmartIcon(link.url)}
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors truncate">{link.name}</span>
+                                        {link.displayMode && (
+                                          <span className="text-[10px] text-slate-500 capitalize">{link.displayMode === 'activity' ? 'ภาพกิจกรรม' : link.displayMode === 'certificate' ? 'เกียรติบัตร' : 'เอกสาร'}</span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                                  </a>
+                                    <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-500">
+                                      <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูรายละเอียด</span>
+                                      <ChevronDown className="w-4 h-4 -rotate-90" />
+                                    </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -574,19 +594,30 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                             ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {ind.evidenceLinks.map((link) => (
-                                  <a
+                                  <button
                                     key={link.id}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-amber-400 text-slate-800 rounded-xl hover:shadow-sm transition-all text-xs"
+                                    onClick={() => handleOpenEvidence(link)}
+                                    className="flex items-center justify-between p-3.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-800 rounded-xl hover:shadow-md transition-all text-xs group cursor-pointer text-left w-full"
                                   >
-                                    <div className="flex items-center gap-2 max-w-[85%]">
-                                      {getSmartIcon(link.url)}
-                                      <span className="font-semibold truncate">{link.name}</span>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 transition-colors">
+                                        {link.displayMode === 'activity' ? <ImageIcon className="w-4 h-4 text-blue-600" /> : 
+                                         link.displayMode === 'certificate' ? <Award className="w-4 h-4 text-amber-600" /> :
+                                         link.displayMode === 'document' || link.url.toLowerCase().endsWith('.pdf') ? <FileText className="w-4 h-4 text-rose-600" /> :
+                                         getSmartIcon(link.url)}
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors truncate">{link.name}</span>
+                                        {link.displayMode && (
+                                          <span className="text-[10px] text-slate-500 capitalize">{link.displayMode === 'activity' ? 'ภาพกิจกรรม' : link.displayMode === 'certificate' ? 'เกียรติบัตร' : 'เอกสาร'}</span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                                  </a>
+                                    <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-500">
+                                      <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูรายละเอียด</span>
+                                      <ChevronDown className="w-4 h-4 -rotate-90" />
+                                    </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -662,19 +693,30 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                             ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {ind.evidenceLinks.map((link) => (
-                                  <a
+                                  <button
                                     key={link.id}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-amber-400 text-slate-800 rounded-xl hover:shadow-sm transition-all text-xs"
+                                    onClick={() => handleOpenEvidence(link)}
+                                    className="flex items-center justify-between p-3.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-800 rounded-xl hover:shadow-md transition-all text-xs group cursor-pointer text-left w-full"
                                   >
-                                    <div className="flex items-center gap-2 max-w-[85%]">
-                                      {getSmartIcon(link.url)}
-                                      <span className="font-semibold truncate">{link.name}</span>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 transition-colors">
+                                        {link.displayMode === 'activity' ? <ImageIcon className="w-4 h-4 text-blue-600" /> : 
+                                         link.displayMode === 'certificate' ? <Award className="w-4 h-4 text-amber-600" /> :
+                                         link.displayMode === 'document' || link.url.toLowerCase().endsWith('.pdf') ? <FileText className="w-4 h-4 text-rose-600" /> :
+                                         getSmartIcon(link.url)}
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors truncate">{link.name}</span>
+                                        {link.displayMode && (
+                                          <span className="text-[10px] text-slate-500 capitalize">{link.displayMode === 'activity' ? 'ภาพกิจกรรม' : link.displayMode === 'certificate' ? 'เกียรติบัตร' : 'เอกสาร'}</span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                                  </a>
+                                    <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-500">
+                                      <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูรายละเอียด</span>
+                                      <ChevronDown className="w-4 h-4 -rotate-90" />
+                                    </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -762,34 +804,34 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
 
               </div>
 
-              {/* Challenge Evidence links */}
-              <div className="pt-3 space-y-3">
-                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-widest pl-1">
-                  เอกสารประกอบแฟ้มประเด็นท้าทาย (Evidence list / Outcomes Documents)
-                </h4>
-                
-                {(!profileData.challenge?.evidenceLinks || profileData.challenge.evidenceLinks.length === 0) ? (
-                  <p className="text-xs text-slate-400 italic pl-1 font-sans">ไม่มีการแนบไฟล์สำหรับประเด็นท้าทายนี้</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {profileData.challenge.evidenceLinks.map((link) => (
-                      <a
-                        key={link.id}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3.5 bg-white border border-[#e2e8f0] hover:border-[#1e3a8a] text-slate-800 rounded-xl hover:shadow-sm transition-all text-xs"
-                      >
-                        <div className="flex items-center gap-2 max-w-[85%]">
-                          {getSmartIcon(link.url)}
-                          <span className="font-semibold truncate">{link.name}</span>
-                        </div>
-                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      {/* Evidence link items */}
+                      <div className="pt-3 space-y-3">
+                        <h4 className="font-bold text-xs text-slate-700 uppercase tracking-widest pl-1">
+                          เอกสารประกอบแฟ้มประเด็นท้าทาย (Evidence list / Outcomes Documents)
+                        </h4>
+                        
+                        {(!profileData.challenge?.evidenceLinks || profileData.challenge.evidenceLinks.length === 0) ? (
+                          <p className="text-xs text-slate-400 italic pl-1 font-sans">ไม่มีการแนบไฟล์สำหรับประเด็นท้าทายนี้</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {profileData.challenge.evidenceLinks.map((link) => (
+                              <button
+                                key={link.id}
+                                onClick={() => handleOpenEvidence(link)}
+                                className="flex items-center justify-between p-4 bg-white border border-[#e2e8f0] hover:border-blue-500 text-slate-800 rounded-2xl hover:shadow-md transition-all text-sm group cursor-pointer text-left"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="p-2.5 rounded-xl bg-slate-50 group-hover:bg-blue-50 transition-colors">
+                                    {getSmartIcon(link.url)}
+                                  </div>
+                                  <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors truncate">{link.name}</span>
+                                </div>
+                                <ChevronDown className="w-5 h-5 -rotate-90 text-slate-400 group-hover:text-blue-500" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
             </div>
 
