@@ -93,8 +93,8 @@ export interface Evaluator {
 export interface EvaluationResult {
   teacherId: string;
   evaluatorId: string;
-  part1Score: number; // 1-4 stars
-  part2Score: number; // 1-4 stars
+  part1Scores: number[]; // Array of 15 scores (1-4 each) -> Max 60
+  part2Scores: number[]; // Array of 10 scores (1-4 each) -> Max 40
   comment?: string;
   updatedAt: string;
 }

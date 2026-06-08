@@ -1673,9 +1673,9 @@ app.get("/api/evaluator/teachers", (req, res) => {
 
 // POST /api/evaluator/evaluate - Save evaluation
 app.post("/api/evaluator/evaluate", (req, res) => {
-  const { evaluatorId, teacherId, part1Score, part2Score, comment } = req.body;
+  const { evaluatorId, teacherId, part1Scores, part2Scores, comment } = req.body;
   
-  if (!evaluatorId || !teacherId) {
+  if (!evaluatorId || !teacherId || !part1Scores || !part2Scores) {
     return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
   }
 
@@ -1687,8 +1687,8 @@ app.post("/api/evaluator/evaluate", (req, res) => {
   const result = {
     teacherId,
     evaluatorId,
-    part1Score: Number(part1Score),
-    part2Score: Number(part2Score),
+    part1Scores: Array.isArray(part1Scores) ? part1Scores.map(Number) : [],
+    part2Scores: Array.isArray(part2Scores) ? part2Scores.map(Number) : [],
     comment: comment || "",
     updatedAt: new Date().toISOString()
   };
