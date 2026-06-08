@@ -124,9 +124,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: loginRole === "admin" ? loginEmail : loginEmail.trim(),
+          email: loginEmail.trim(),
           password: loginPassword,
-          role: loginRole
         }),
       });
 
@@ -291,12 +290,12 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
           {/* Header tabs toggle */}
           <div className="flex bg-slate-900 text-slate-400 border-b border-slate-800">
             <button
-              onClick={() => { setActiveTab("login"); setLoginRole("teacher"); setMessage(null); }}
-              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "login" && loginRole === "teacher" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
+              onClick={() => { setActiveTab("login"); setMessage(null); }}
+              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "login" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
               id="tab-login"
             >
               <LogIn className="inline-block w-4 h-4 mr-2" />
-              ลงชื่อเข้าใช้งาน (ครู)
+              ลงชื่อเข้าใช้งาน
             </button>
             <button
               onClick={() => { setActiveTab("register"); setMessage(null); }}
@@ -305,22 +304,6 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
             >
               <Sparkles className="inline-block w-4 h-4 mr-2" />
               ขอเปิดสิทธิ์ใช้งานใหม่
-            </button>
-            <button
-              onClick={() => { setActiveTab("admin"); setLoginRole("admin"); setMessage(null); }}
-              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "admin" && loginRole === "admin" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
-              id="tab-admin"
-            >
-              <User className="inline-block w-4 h-4 mr-2" />
-              ดูแลระบบ
-            </button>
-            <button
-              onClick={() => { setActiveTab("login"); setLoginRole("evaluator"); setMessage(null); }}
-              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "login" && loginRole === "evaluator" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
-              id="tab-evaluator"
-            >
-              <Shield className="inline-block w-4 h-4 mr-2" />
-              กรรมการ
             </button>
           </div>
 
@@ -334,8 +317,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
               </div>
             )}
 
-            {/* TAB 1: LOGIN (Teacher) */}
-            {(activeTab === "login" || activeTab === "admin") && (
+            {/* TAB 1: UNIFIED LOGIN */}
+            {activeTab === "login" && (
               <motion.form 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -345,50 +328,28 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
               >
                 <div>
                   <h3 className="text-xl font-bold font-sans text-slate-800 mb-2">
-                    {loginRole === "admin" 
-                      ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" 
-                      : loginRole === "evaluator" 
-                        ? "เข้าใช้งานในฐานะคณะกรรมการประเมิน (PA Committee)"
-                        : "เข้าสู่ระบบด้วยหมายเลขประจำตัวประชาชน"}
+                    ลงชื่อเข้าสู่ระบบ
                   </h3>
                   <p className="text-sm font-sans text-slate-500">
-                    {loginRole === "admin" 
-                      ? "อนุมัติโรงเรียนเครือข่าย มอบอำนวยการระบบและตรวจสอบสิทธิ์แอดมินย่อย" 
-                      : loginRole === "evaluator"
-                        ? "ตรวจสอบพอร์ตโฟลิโอและบันทึกคะแนนการประเมิน PA ของคุณครู"
-                      : "กรอกหมายเลขประจำตัวประชาชน 13 หลัก และรหัสผ่านเพื่อเข้าใช้งาน"}
+                    เข้าใช้งานระบบบันทึกข้อตกลง PA ด้วยบัญชีของคุณ (ครู / แอดมิน / กรรมการ)
                   </p>
-                  
-                  {loginRole === "admin" && (
-                    <div className="mt-4 p-3.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs font-sans italic">
-                      <p className="font-bold mb-1">🔑 ส่วนเข้าใช้งานของผู้ดูแลระบบส่วนกลาง:</p>
-                      <p>กรุณาระบุชื่อผู้ใช้และรหัสผ่านที่คุณได้รับการแจ้งจากทางส่วนกลางเพื่อเข้าสู่ระบบควบคุม</p>
-                    </div>
-                  )}
-
-                  {loginRole === "evaluator" && (
-                    <div className="mt-4 p-3.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-xl text-xs font-sans">
-                      <p className="font-bold mb-1">📋 สำหรับคณะกรรมการประเมิน:</p>
-                      <p>ใช้ชื่อผู้ใช้งานและรหัสผ่านที่แอดมินของโรงเรียนกำหนดให้เพื่อเข้าสู่ระบบให้คะแนน</p>
-                    </div>
-                  )}
                 </div>
 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold font-sans text-slate-600 uppercase tracking-wider mb-2">
-                      {loginRole === "admin" || loginRole === "evaluator" ? "ชื่อบัญชีผู้ใช้งาน" : "หมายเลขประจำตัวประชาชน (13 หลัก)"}
+                      เลขบัตรประชาชน หรือ ชื่อผู้ใช้งาน
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        {loginRole === "evaluator" ? <Shield className="h-5 w-5 text-slate-400" /> : <Mail className="h-5 w-5 text-slate-400" />}
+                        <User className="h-5 w-5 text-slate-400" />
                       </div>
                       <input
                         type="text"
                         required
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder={loginRole === "admin" ? "admin" : loginRole === "evaluator" ? "Username ของคุณ" : "ตัวอย่าง: 1234567890123"}
+                        placeholder="ระบุชื่อผู้ใช้ หรือเลขบัตรประชาชน 13 หลัก"
                         className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans transition-all"
                         id="login-email-input"
                       />
@@ -408,7 +369,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder={loginRole === "admin" ? "admin123" : "ระบุตัวเลข/รหัสผ่านเพื่อรักษาความปลอดภัย"}
+                        placeholder="ระบุรหัสผ่านของคุณ"
                         className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans transition-all"
                         id="login-password-input"
                       />
@@ -416,17 +377,21 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                   </div>
                 </div>
 
-
-
                 <button
                   type="submit"
                   disabled={isLoading}
                   className="w-full flex justify-center items-center gap-2 py-3.5 bg-slate-900 border-none rounded-xl text-white font-sans text-sm font-semibold shadow-md hover:bg-slate-800 transition-colors cursor-pointer focus:outline-shadow disabled:opacity-50"
                   id="auth-submit-btn"
                 >
-                  {isLoading ? "กำลังทำงาน..." : "เข้าสู่ระบบทำงาน"}
+                  {isLoading ? "กำลังตรวจสอบสิทธิ์..." : "เข้าสู่ระบบ"}
                   <ArrowRight className="w-4 h-4" />
                 </button>
+
+                <div className="pt-2 text-center">
+                  <p className="text-[11px] text-slate-400 italic">
+                    * ระบบจะตรวจสอบสิทธิ์การใช้งานโดยอัตโนมัติ (ครู, ผู้ดูแลระบบ, หรือกรรมการ)
+                  </p>
+                </div>
               </motion.form>
             )}
 

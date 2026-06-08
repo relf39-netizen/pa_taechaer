@@ -921,69 +921,65 @@ let localDB = loadDatabase();
 
 // 1. Authenticate / Login API
 app.post("/api/auth/login", (req, res) => {
-  const { email, password, role } = req.body;
+  const { email, password } = req.body;
+  const username = email?.trim();
 
-  if (role === "admin") {
-    const isSuperAdmin = (email === "superadmin" && password === "superadmin123");
-    const isLocalAdmin = (email === localDB.adminConfig.username && password === localDB.adminConfig.passwordHash);
-    
-    if (isSuperAdmin || isLocalAdmin) {
-      return res.json({
-        success: true,
-        message: "เข้าสู่ระบบในฐานะผู้ดูแลระบบสูงสุด (Super Admin) สำเร็จ",
-        user: { role: "admin", username: "superadmin", name: "ผู้ดูแลระบบสูงสุด (Super Admin)" }
-      });
-    }
-    return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่าน Admin ไม่ถูกต้อง" });
+  // 1. Try Admin (Super Admin or School Admin)
+  const isSuperAdmin = (username === "superadmin" && password === "superadmin123");
+  const isLocalAdmin = (username === localDB.adminConfig.username && password === localDB.adminConfig.passwordHash);
+  
+  if (isSuperAdmin || isLocalAdmin) {
+    return res.json({
+      success: true,
+      message: "เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ",
+      user: { role: "admin", username: username, name: isSuperAdmin ? "Super Admin" : "School Admin" }
+    });
   }
 
-  if (role === "evaluator") {
-    const evaluator = Object.values(localDB.evaluators || {}).find(e => e.username === email && e.password === password);
-    if (evaluator) {
-      return res.json({
-        success: true,
-        message: "เข้าสู่ระบบคณะกรรมการ (Committee) สำเร็จ",
-        user: { ...evaluator, role: "evaluator" }
-      });
-    }
-    return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่านกรรมการไม่ถูกต้อง" });
+  // 2. Try Evaluator (Committee)
+  const evaluator = Object.values(localDB.evaluators || {}).find(e => e.username === username && e.password === password);
+  if (evaluator) {
+    return res.json({
+      success: true,
+      message: "เข้าสู่ระบบในฐานะคณะกรรมการสำเร็จ",
+      user: { ...evaluator, role: "evaluator" }
+    });
   }
 
-  // Teacher/Director/SchoolAdmin login (Flexible look up by email, username or idCard)
-  let teacher = localDB.teachers[email];
+  // 3. Try Teacher/Staff
+  let teacher = localDB.teachers[username];
   if (!teacher) {
     teacher = Object.values(localDB.teachers).find(
-      t => t.idCard === email || t.username === email || t.email === email
+      t => t.idCard === username || t.username === username || t.email === username
     );
   }
 
   if (teacher) {
     // Check approval
     if (teacher.status === "pending") {
-      return res.status(403).json({ success: false, message: "บัญชีของคุณอยู่ระหว่างรอผู้ดูแลระบบตรวจสอบอนุมัติลิงก์ขอใช้งาน" });
+      return res.status(403).json({ success: false, message: "บัญชีของคุณอยู่ระหว่างรอการอนุมัติสิทธิ์เข้าใช้งาน" });
     }
 
-    // Password validation: newly registered teachers check against password or default 123456
+    // Password validation
     const expectedPassword = teacher.password || "123456";
     if (password !== expectedPassword && password !== "123456") {
-      // Seed fallback for demo teachers where password was their email prefix
       const emailPrefix = teacher.email.split("@")[0];
       if (password !== emailPrefix) {
-        return res.status(401).json({ success: false, message: "ชื่อล็อกอินหรือรหัสผ่านไม่ถูกต้อง" });
+        return res.status(401).json({ success: false, message: "รหัสผ่านไม่ถูกต้อง" });
       }
     }
 
-    // Return teacher data
+    // Return teacher result
     const data = localDB.teacherDataList[teacher.id];
     return res.json({
       success: true,
-      message: "เข้าสู่ระบบสำเร็จ",
-      user: { role: teacher.role || "teacher", mustChangePassword: teacher.mustChangePassword || false, ...teacher },
+      message: `ยินดีต้อนรับ ${teacher.name}`,
+      user: { role: teacher.role || "teacher", ...teacher },
       data: data
     });
   }
 
-  return res.status(401).json({ success: false, message: "ไม่พบข้อมูลบัญชีผู้ใช้งานครูในระบบ กรุณาสมัครเป็นสมาชิกเข้าใช้งานก่อน" });
+  return res.status(401).json({ success: false, message: "ไม่พบข้อมูลผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง" });
 });
 
 // 2. Register Teacher API
