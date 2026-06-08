@@ -194,38 +194,32 @@ export default function App() {
               <div className="lg:col-span-5 bg-[#172554] border border-blue-950/65 p-6 md:p-8 rounded-lg shadow-xl flex flex-col justify-between">
                 <div>
                   <h3 className="font-bold text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wider mb-2">
-                    <Users className="w-5 h-5 text-[#facc15]" />
-                    รายชื่อคุณครูที่พร้อมรับการตรวจประเมิน
+                    <School className="w-5 h-5 text-[#facc15]" />
+                    โรงเรียนที่เข้าร่วมการตรวจประเมินออนไลน์
                   </h3>
                   <p className="text-xs text-blue-200 border-none leading-relaxed">
-                    คุณกรรมการของสพฐ.หรือโรงเรียน สามารถคลิกอ้างอิงชื่อลิงก์เพื่อเข้าตรวจสอบข้อมูลและหลักฐานตัวชี้วัดได้ทันที
+                    รายชื่อสถานศึกษาที่มีคุณครูส่งเข้ารับการประเมินในระบบ PA ประจำปีงบประมาณนี้
                   </p>
                 </div>
 
                 <div className="my-5 divide-y divide-blue-900/50 max-h-[220px] overflow-y-auto pr-1">
                   {demoTeachers.length === 0 ? (
-                    <p className="text-xs text-blue-300 italic py-4">กำลังเตรียมรายชื่อคุณครูนำเสนอ...</p>
+                    <p className="text-xs text-blue-300 italic py-4">กำลังเตรียมรายชื่อโรงเรียนนำเสนอ...</p>
                   ) : (
-                    demoTeachers.map((t) => (
-                      <div key={t.id} className="py-2.5 flex items-center justify-between text-xs border-b border-blue-900/30">
-                        <div>
-                          <strong className="text-slate-100 block">{t.name}</strong>
-                          <span className="text-[10px] text-blue-300">{t.school}</span>
+                    Array.from(new Set(demoTeachers.map(t => t.school))).filter(Boolean).map((school, idx) => (
+                      <div key={idx} className="py-2.5 flex items-center justify-between text-xs border-b border-blue-900/30">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <strong className="text-slate-100 block">{school}</strong>
                         </div>
-                        <a 
-                          href={`/?p=${t.slug}`}
-                          className="flex items-center gap-1 font-mono text-[#facc15] hover:text-yellow-300 font-semibold hover:underline"
-                        >
-                          /{t.slug}
-                          <ChevronRight className="w-3 h-3" />
-                        </a>
+                        <span className="text-[10px] text-blue-300 font-mono">ACTIVE</span>
                       </div>
                     ))
                   )}
                 </div>
 
                 <div className="pt-4 border-t border-blue-900 text-[11px] text-blue-200 flex justify-between items-center bg-transparent">
-                  <span>ผู้จัดทำ: คณะทำงานโรงเรียนข้าราชการยึดสมรรถนะ</span>
+                  <span>ผู้จัดทำ: Mr.Siam Chaingkhua 🏫 :: school director</span>
                   <Award className="w-4 h-4 text-[#facc15]" />
                 </div>
               </div>
@@ -340,8 +334,9 @@ export default function App() {
           </main>
 
           {/* Footer of the Portal app - Navy elegant */}
-          <footer className="bg-slate-900 text-white py-8 border-t border-slate-800 text-center text-xs">
-            <div className="max-w-7xl mx-auto px-6 space-y-1">
+          <footer className="bg-slate-900 text-white py-10 border-t border-slate-800 text-center text-xs">
+            <div className="max-w-7xl mx-auto px-6 space-y-2">
+              <p className="font-bold text-slate-200">Mr.Siam Chaingkhua 🏫 :: school director</p>
               <p>&copy; ระบบแฟ้มสะสมข้อตกลงในการพัฒนางาน (PA) ข้าราชการครู สพฐ.</p>
               <p className="text-slate-400 text-[10px]">สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ ประเทศไทย</p>
             </div>
