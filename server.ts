@@ -922,7 +922,7 @@ app.post("/api/auth/register", (req, res) => {
     idCard: idCard,
     username: idCard,
     password: "123456",
-    mustChangePassword: true
+    mustChangePassword: false
   };
 
   // Save teacher
@@ -1295,7 +1295,7 @@ app.post("/api/schools/register", (req, res) => {
     idCard: idCard,
     username: idCard,
     password: "123456",
-    mustChangePassword: true
+    mustChangePassword: false
   };
 
   // Ensure schools object exists

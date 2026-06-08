@@ -150,7 +150,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [themeColor, setThemeColor] = useState(data.teacher.themeColor || "blue");
 
   // Security / Password change states
-  const [mustChangePassword, setMustChangePassword] = useState(data.teacher.mustChangePassword || false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [newPasswordVal, setNewPasswordVal] = useState("");
   const [confirmPasswordVal, setConfirmPasswordVal] = useState("");
   const [passChangeLoading, setPassChangeLoading] = useState(false);
@@ -999,69 +1000,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f1f5f9] text-slate-850 font-sans">
-      {/* ⚠️ FORCED PASSWORD CHANGE PROCESS DIALOG */}
-      <AnimatePresence>
-        {mustChangePassword && (
-          <div className="fixed inset-0 bg-slate-900/90 z-50 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white max-w-sm w-full rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
-            >
-              <div className="bg-[#1e3a8a] py-6 px-6 text-white border-b-4 border-[#facc15] text-center">
-                <div className="bg-white/10 p-3 rounded-full w-14 h-14 mx-auto mb-3 flex items-center justify-center">
-                  <User className="w-7 h-7 text-[#facc15]" />
-                </div>
-                <h3 className="text-lg font-bold font-sans">กรุณาตั้งค่ารหัสผ่านใหม่</h3>
-                <p className="text-xs text-blue-150 mt-1">นี่คือการเข้าสู่ระบบครั้งแรกของคุณครู เพื่อความปลอดภัยกรุณาเปลี่ยนจากรหัสผ่านเริ่มต้นทั่วไป (123456)</p>
-              </div>
-
-              <form onSubmit={handlePasswordChangeSubmit} className="p-6 space-y-4 font-sans">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={newPasswordVal}
-                    onChange={(e) => setNewPasswordVal(e.target.value)}
-                    placeholder="กรอกรหัสใหม่ที่ปลอดภัยของท่าน"
-                    className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-bold text-slate-705 mb-1.5">
-                    ยืนยันรหัสผ่านใหม่อีกครั้ง
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={confirmPasswordVal}
-                    onChange={(e) => setConfirmPasswordVal(e.target.value)}
-                    placeholder="กรอกรหัสผ่านใหม่อีกครั้งให้ตรงกัน"
-                    className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={passChangeLoading}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#facc15] hover:bg-[#ebd113] text-slate-900 font-sans text-sm font-bold border-none rounded-xl cursor-pointer shadow transition-all disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="w-5 h-5 text-slate-950" />
-                    {passChangeLoading ? "กำลังปรับเปลี่ยน..." : "ยืนยันและเปิดใช้งานบัญชี"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Removed mandatory password change dialog as per user request */}
 
       {/* Toast Warning */}
       <AnimatePresence>
@@ -1100,9 +1039,18 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <a 
+              href={`/?p=${data.teacher.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-[#facc15] hover:bg-white hover:text-blue-900 text-[#1e3a8a] font-bold text-xs rounded-xl transition-all no-underline shadow-sm border-none"
+            >
+              <ExternalLink className="w-4 h-4" />
+              เปิดดูหน้าพอร์ตโฟลิโอของคุณ
+            </a>
             <button
               onClick={copyPublicLink}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#facc15] hover:bg-[#ebd113] text-[#1e3a8a] rounded-lg transition-all shadow-sm cursor-pointer border-none"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-blue-700/50 hover:bg-blue-600 text-white rounded-xl transition-all shadow-sm cursor-pointer border border-blue-400/30"
               id="copy-pa-link-header"
             >
               <Globe className="w-3.5 h-3.5" />
@@ -1110,10 +1058,10 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
             </button>
             <button
               onClick={onLogout}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs text-rose-450 hover:text-white border border-rose-500/30 hover:bg-rose-600/30 rounded-lg transition-all cursor-pointer"
+              className="flex items-center gap-1 px-3 py-2 text-xs text-rose-300 hover:text-white border border-rose-500/30 hover:bg-rose-600/30 rounded-xl transition-all cursor-pointer"
               id="logout-btn"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <LogOut className="w-3.5 h-3.5" />
               ออกจากระบบ
             </button>
           </div>
@@ -1133,6 +1081,14 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
             <div>
               <strong>ปีงบประมาณ:</strong> พ.ศ. {data.teacher.academicYear}
             </div>
+            <a 
+              href={`/?p=${data.teacher.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white bg-blue-600 px-3 py-1 rounded-md hover:bg-blue-700 transition-all no-underline font-bold"
+            >
+              ดูหน้าพอร์ตสาธารณะ (Live)
+            </a>
           </div>
           <div className="text-blue-700 font-bold font-mono text-xs select-all bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1">
             Link: {window.location.origin}/?p={data.teacher.slug}
