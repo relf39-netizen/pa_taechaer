@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { createServer as createViteServer } from "vite";
-import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState, School } from "./src/types";
+import { Teacher, TeacherData, PAIndicator, PACleaningChallenge, DBState, School, Evaluator, EvaluationResult } from "./src/types";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
@@ -551,6 +551,33 @@ async function createMySQLTables() {
       \`password_hash\` VARCHAR(255) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  // 4. Evaluators table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_evaluators\` (
+      \`id\` VARCHAR(50) NOT NULL PRIMARY KEY,
+      \`username\` VARCHAR(100) NOT NULL UNIQUE,
+      \`password\` VARCHAR(255) NOT NULL,
+      \`name\` VARCHAR(100) NOT NULL,
+      \`position\` VARCHAR(100) DEFAULT NULL,
+      \`school_smiss_code\` VARCHAR(20) NOT NULL,
+      \`role\` VARCHAR(20) DEFAULT 'evaluator'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  // 5. Evaluation Results table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS \`pa_evaluations\` (
+      \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+      \`teacher_id\` VARCHAR(50) NOT NULL,
+      \`evaluator_id\` VARCHAR(50) NOT NULL,
+      \`part1_scores\` TEXT NOT NULL,
+      \`part2_scores\` TEXT NOT NULL,
+      \`comment\` TEXT DEFAULT NULL,
+      \`updated_at\` VARCHAR(50) NOT NULL,
+      UNIQUE KEY \`unique_evaluation\` (\`teacher_id\`, \`evaluator_id\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 }
 
 async function loadDataFromMySQL() {
@@ -658,6 +685,42 @@ async function loadDataFromMySQL() {
       console.log(`Success: Loaded ${schoolRows.length} schools from MySQL.`);
     } catch (schoolLoadErr) {
       console.error("Error loading schools from MySQL:", schoolLoadErr);
+    }
+
+    // Load Evaluators
+    try {
+      const [evalRows] = await mysqlPool.query<any[]>("SELECT * FROM `pa_evaluators` order by name");
+      const loadedEvaluators: Record<string, Evaluator> = {};
+      for (const eRow of evalRows) {
+        loadedEvaluators[eRow.id] = {
+          id: eRow.id,
+          username: eRow.username,
+          password: eRow.password,
+          name: eRow.name,
+          position: eRow.position,
+          schoolSmissCode: eRow.school_smiss_code,
+          role: eRow.role as 'evaluator'
+        };
+      }
+      localDB.evaluators = loadedEvaluators;
+    } catch (evalLoadErr) {
+      console.error("Error loading evaluators from MySQL:", evalLoadErr);
+    }
+
+    // Load Evaluations
+    try {
+      const [resultRows] = await mysqlPool.query<any[]>("SELECT * FROM `pa_evaluations` order by updated_at desc");
+      const loadedResults: EvaluationResult[] = resultRows.map(r => ({
+        teacherId: r.teacher_id,
+        evaluatorId: r.evaluator_id,
+        part1Scores: JSON.parse(r.part1_scores),
+        part2Scores: JSON.parse(r.part2_scores),
+        comment: r.comment || undefined,
+        updatedAt: r.updated_at
+      }));
+      localDB.evaluations = loadedResults;
+    } catch (resLoadErr) {
+      console.error("Error loading evaluations from MySQL:", resLoadErr);
     }
 
     console.log(`Success: Loaded ${teacherRows.length} teachers and data portfolios from MySQL.`);
@@ -790,6 +853,58 @@ async function syncStateToMySQL(state: DBState) {
             s.dateCreated,
             s.driveFolderId || null,
             s.gasWebUrl || null
+          ]
+        );
+      }
+    }
+
+    // Sync Evaluators
+    if (state.evaluators) {
+      const [existingEvals] = await mysqlPool.query<any[]>("SELECT id FROM `pa_evaluators`");
+      const currentEvalIds = new Set(Object.keys(state.evaluators));
+      for (const extE of existingEvals) {
+        if (!currentEvalIds.has(extE.id)) {
+          await mysqlPool.query("DELETE FROM `pa_evaluators` WHERE id = ?", [extE.id]);
+        }
+      }
+
+      for (const evalId of Object.keys(state.evaluators)) {
+        const ev = state.evaluators[evalId];
+        await mysqlPool.query(
+          `INSERT INTO \`pa_evaluators\` (
+            id, username, password, name, position, school_smiss_code, role
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            username = VALUES(username),
+            password = VALUES(password),
+            name = VALUES(name),
+            position = VALUES(position),
+            school_smiss_code = VALUES(school_smiss_code),
+            role = VALUES(role)`,
+          [ev.id, ev.username, ev.password, ev.name, ev.position, ev.schoolSmissCode, ev.role]
+        );
+      }
+    }
+
+    // Sync Evaluation Results
+    if (state.evaluations) {
+      for (const res of state.evaluations) {
+        await mysqlPool.query(
+          `INSERT INTO \`pa_evaluations\` (
+            teacher_id, evaluator_id, part1_scores, part2_scores, comment, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            part1_scores = VALUES(part1_scores),
+            part2_scores = VALUES(part2_scores),
+            comment = VALUES(comment),
+            updated_at = VALUES(updated_at)`,
+          [
+            res.teacherId, 
+            res.evaluatorId, 
+            JSON.stringify(res.part1Scores), 
+            JSON.stringify(res.part2Scores), 
+            res.comment || null, 
+            res.updatedAt
           ]
         );
       }
