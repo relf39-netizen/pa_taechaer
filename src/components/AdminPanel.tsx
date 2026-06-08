@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, FormEvent } from "react";
 import { motion } from "motion/react";
 import { 
   User, Shield, Landmark, School, Trash2, CheckCircle2, 
-  ExternalLink, Code, Download, Copy, Check, Terminal, FileCode, AlertCircle, Cloud, LayoutGrid
+  ExternalLink, Code, Download, Copy, Check, Terminal, FileCode, AlertCircle, Cloud, LayoutGrid,
+  Settings, Edit3, Save, X, RefreshCw
 } from "lucide-react";
 import { Teacher } from "../types";
 
@@ -14,9 +15,19 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schools, setSchools] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql" | "gas">("teachers");
+  const [activeSubTab, setActiveSubTab] = useState<"teachers" | "schools" | "mysql" | "gas" | "settings">("teachers");
   const [selectedSchoolCode, setSelectedSchoolCode] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // School Editing States
+  const [editingSchoolCode, setEditingSchoolCode] = useState<string | null>(null);
+  const [editSchoolName, setEditSchoolName] = useState("");
+  const [editSchoolAffiliation, setEditSchoolAffiliation] = useState("");
+
+  // Admin Password States
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // SQL & Windows setup instructions states
   const [sqlSchema, setSqlSchema] = useState("");
@@ -308,6 +319,80 @@ function doGet(e) {
     }
   };
 
+  const handleUpdateSchool = async () => {
+    if (!editingSchoolCode) return;
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/schools/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: editingSchoolCode,
+          name: editSchoolName,
+          affiliation: editSchoolAffiliation
+        })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาดในการแก้ไขข้อมูล");
+      
+      setMessage({ type: "success", text: resData.message });
+      setEditingSchoolCode(null);
+      fetchSchools();
+      fetchTeachers();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    }
+  };
+
+  const handleDeleteSchool = async (smissCode: string, schoolName: string) => {
+    if (!window.confirm(`⚠️ คำเตือน: หากลบโรงเรียน "${schoolName}" ข้อมูลคุณครูทั้งหมดในโรงเรียนนี้จะถูกลบออกจากระบบด้วยอย่างถาวร! คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?`)) return;
+    
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/schools/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ smissCode })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาดในการลบข้อมูล");
+      
+      setMessage({ type: "success", text: resData.message });
+      fetchSchools();
+      fetchTeachers();
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    }
+  };
+
+  const handleChangeAdminPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (newAdminPassword !== confirmAdminPassword) {
+      setMessage({ type: "error", text: "รหัสผ่านไม่ตรงกัน" });
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: newAdminPassword })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message || "เกิดข้อผิดพลาด");
+      
+      setMessage({ type: "success", text: "เปลี่ยนรหัสผ่านผู้ดูแลระบบเรียบร้อยแล้ว" });
+      setNewAdminPassword("");
+      setConfirmAdminPassword("");
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const handleCopySql = () => {
     navigator.clipboard.writeText(sqlSchema);
     setCopiedSql(true);
@@ -379,6 +464,13 @@ function doGet(e) {
               id="subtab-gas"
             >
               ตั้งค่า Google Drive (School Storage)
+            </button>
+            <button
+              onClick={() => setActiveSubTab("settings")}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg border-none cursor-pointer transition-colors ${activeSubTab === "settings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              id="subtab-settings"
+            >
+              ตั้งค่าบัญชี
             </button>
           </div>
 
@@ -687,10 +779,24 @@ function doGet(e) {
                             {sch.smissCode}
                           </td>
                           <td className="py-4 px-5 font-semibold text-slate-800">
-                            {sch.name}
+                            {editingSchoolCode === sch.smissCode ? (
+                              <input 
+                                type="text"
+                                value={editSchoolName}
+                                onChange={(e) => setEditSchoolName(e.target.value)}
+                                className="w-full px-2 py-1 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                              />
+                            ) : sch.name}
                           </td>
                           <td className="py-4 px-5 text-slate-600">
-                            {sch.affiliation || "-"}
+                            {editingSchoolCode === sch.smissCode ? (
+                              <input 
+                                type="text"
+                                value={editSchoolAffiliation}
+                                onChange={(e) => setEditSchoolAffiliation(e.target.value)}
+                                className="w-full px-2 py-1 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                              />
+                            ) : (sch.affiliation || "-")}
                           </td>
                           <td className="py-4 px-5">
                             {leadTeacher ? (
@@ -714,21 +820,56 @@ function doGet(e) {
                             )}
                           </td>
                           <td className="py-4 px-5 text-right">
-                            {sch.status !== "approved" ? (
-                              <button
-                                onClick={() => handleApproveSchool(sch.smissCode, sch.status)}
-                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg border-none cursor-pointer transition-colors"
-                              >
-                                อนุมัติสิทธิ์ก่อตั้ง
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleApproveSchool(sch.smissCode, sch.status)}
-                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-colors"
-                              >
-                                ระงับการใช้งานโรงเรียน
-                              </button>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {editingSchoolCode === sch.smissCode ? (
+                                <>
+                                  <button
+                                    onClick={handleUpdateSchool}
+                                    className="p-1 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg flex items-center gap-1 border-none cursor-pointer"
+                                  >
+                                    <Save className="w-3.5 h-3.5" /> บันทึก
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingSchoolCode(null)}
+                                    className="p-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-1 border-none cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" /> ยกเลิก
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingSchoolCode(sch.smissCode);
+                                      setEditSchoolName(sch.name);
+                                      setEditSchoolAffiliation(sch.affiliation);
+                                    }}
+                                    className="p-1.5 bg-slate-50 hover:bg-white text-slate-600 border border-slate-200 rounded-lg cursor-pointer"
+                                    title="แก้ไขโรงเรียน"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleApproveSchool(sch.smissCode, sch.status)}
+                                    className={`px-3 py-1.5 rounded-lg font-bold border cursor-pointer transition-colors ${
+                                      sch.status === "approved" 
+                                        ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                        : "bg-emerald-500 hover:bg-emerald-600 text-white border-none"
+                                    }`}
+                                    title={sch.status === "approved" ? "ระงับการใช้งาน" : "อนุมัติ"}
+                                  >
+                                    {sch.status === "approved" ? "ระงับ" : "อนุมัติ"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSchool(sch.smissCode, sch.name)}
+                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg cursor-pointer"
+                                    title="ลบโรงเรียนและครูทั้งหมด"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -842,6 +983,67 @@ function doGet(e) {
 
             </div>
 
+          </div>
+        )}
+
+        {/* TAB 5: ADMIN SETTINGS */}
+        {activeSubTab === "settings" && (
+          <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-250 p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-slate-900 text-white rounded-xl">
+                <Settings className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 font-sans">ตั้งค่าบัญชีผู้ดูแลระบบสูงสุด</h3>
+                <p className="text-sm text-slate-500">จัดการข้อมูลความปลอดภัยของ Super Admin</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleChangeAdminPassword} className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">รหัสผ่านใหม่</label>
+                  <input
+                    type="password"
+                    required
+                    value={newAdminPassword}
+                    onChange={(e) => setNewAdminPassword(e.target.value)}
+                    placeholder="ระบุรหัสผ่านใหม่"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">ยืนยันรหัสผ่านใหม่</label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmAdminPassword}
+                    onChange={(e) => setConfirmAdminPassword(e.target.value)}
+                    placeholder="ระบุรหัสผ่านใหม่อีกครั้ง"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-xs text-slate-400 font-sans">
+                  * การเปลี่ยนรหัสผ่านจะมีผลทันทีในการล็อกอินครั้งถัดไป
+                </p>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword || !newAdminPassword}
+                  className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2 cursor-pointer border-none"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> กำลังบันทึก...
+                    </>
+                  ) : (
+                    "บันทึกการเปลี่ยนแปลง"
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

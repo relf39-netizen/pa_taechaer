@@ -346,12 +346,9 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                   </p>
                   
                   {loginRole === "admin" && (
-                    <div className="mt-4 p-3.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs font-sans">
-                      <p className="font-bold mb-1">🔑 รหัสผู้ดูแลระบบสูงสุด (Super Admin Auth):</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        <li><b>Username:</b> <code className="bg-amber-100 px-1 py-0.5 rounded font-mono select-all">superadmin</code></li>
-                        <li><b>Password:</b> <code className="bg-amber-100 px-1 py-0.5 rounded font-mono select-all">superadmin123</code></li>
-                      </ul>
+                    <div className="mt-4 p-3.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs font-sans italic">
+                      <p className="font-bold mb-1">🔑 ส่วนเข้าใช้งานของผู้ดูแลระบบส่วนกลาง:</p>
+                      <p>กรุณาระบุชื่อผู้ใช้และรหัสผ่านที่คุณได้รับการแจ้งจากทางส่วนกลางเพื่อเข้าสู่ระบบควบคุม</p>
                     </div>
                   )}
                 </div>
@@ -398,14 +395,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                   </div>
                 </div>
 
-                {/* Demonstration Alert Banner */}
-                {loginRole === "teacher" && (
-                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 leading-relaxed font-sans">
-                    💡 <strong>หมายเลขประจำตัวสำหรับทดลองสิทธิ์:</strong><br />
-                    คุณครูมานะ (แอดมิน): <span className="underline font-mono">1030010100001</span> (รหัสผ่านใดก็ได้)<br />
-                    คุณครูปิติ (ครูทั่วไป): <span className="underline font-mono">1030010100002</span> (รหัสผ่านใดก็ได้)
-                  </div>
-                )}
+
 
                 <button
                   type="submit"

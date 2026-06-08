@@ -1363,6 +1363,77 @@ app.post("/api/admin/schools/approve", (req, res) => {
   });
 });
 
+// POST /api/admin/change-password
+app.post("/api/admin/change-password", (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุรหัสผ่านใหม่" });
+  }
+
+  localDB.adminConfig.passwordHash = newPassword;
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "เปลี่ยนรหัสผ่านผู้ดูแลระบบสำเร็จ"
+  });
+});
+
+// POST /api/admin/schools/update
+app.post("/api/admin/schools/update", (req, res) => {
+  const { smissCode, name, affiliation } = req.body;
+
+  if (!localDB.schools || !localDB.schools[smissCode]) {
+    return res.status(404).json({ success: false, message: "ไม่พบข้อมูลโรงเรียน" });
+  }
+
+  const school = localDB.schools[smissCode];
+  school.name = name || school.name;
+  school.affiliation = affiliation || school.affiliation;
+
+  // Also update teacher's school name if they belong to this school
+  Object.values(localDB.teachers).forEach(t => {
+    if (t.schoolSmissCode === smissCode) {
+      t.school = school.name;
+      t.affiliation = school.affiliation;
+    }
+  });
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "แก้ไขข้อมูลโรงเรียนเรียบร้อยแล้ว",
+    school
+  });
+});
+
+// POST /api/admin/schools/delete
+app.post("/api/admin/schools/delete", (req, res) => {
+  const { smissCode } = req.body;
+
+  if (!localDB.schools || !localDB.schools[smissCode]) {
+    return res.status(404).json({ success: false, message: "ไม่พบข้อมูลโรงเรียน" });
+  }
+
+  // Delete all teachers in this school
+  const teachersToDelete = Object.values(localDB.teachers).filter(t => t.schoolSmissCode === smissCode);
+  teachersToDelete.forEach(t => {
+    delete localDB.teachers[t.email];
+    delete localDB.teacherDataList[t.id];
+  });
+
+  // Delete the school
+  delete localDB.schools[smissCode];
+
+  saveDatabase(localDB);
+
+  return res.json({
+    success: true,
+    message: "ลบข้อมูลโรงเรียนและรายชื่อคุณครูทั้งหมดในโรงเรียนเรียบร้อยแล้ว"
+  });
+});
+
 // GET /api/school/teachers (Called by School Admin)
 app.get("/api/school/teachers", (req, res) => {
   const { smissCode } = req.query;

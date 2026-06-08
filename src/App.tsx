@@ -21,6 +21,7 @@ export default function App() {
 
   // List of active teachers for demonstration on home page
   const [demoTeachers, setDemoTeachers] = useState<Teacher[]>([]);
+  const [activeSchools, setActiveSchools] = useState<any[]>([]);
 
   // 1. URL Query Parameter Sniffer
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function App() {
       }
     }
 
-    // Always fetch teacher demography for homepage list
+    // Fetch teacher demography for homepage list
     fetch("/api/teachers")
       .then((res) => res.json())
       .then((resData) => {
@@ -62,6 +63,16 @@ export default function App() {
         }
       })
       .catch((err) => console.error("Error loading teachers demo list:", err));
+
+    // Fetch approved schools for homepage list
+    fetch("/api/schools")
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.success) {
+          setActiveSchools(resData.schools.filter((s: any) => s.status === "approved"));
+        }
+      })
+      .catch((err) => console.error("Error loading schools list:", err));
   }, []);
 
   const handleLoginSuccess = (user: any, data: any) => {
@@ -203,23 +214,23 @@ export default function App() {
                 </div>
 
                 <div className="my-5 divide-y divide-blue-900/50 max-h-[220px] overflow-y-auto pr-1">
-                  {demoTeachers.length === 0 ? (
+                  {activeSchools.length === 0 ? (
                     <p className="text-xs text-blue-300 italic py-4">กำลังเตรียมรายชื่อโรงเรียนนำเสนอ...</p>
                   ) : (
-                    Array.from(new Set(demoTeachers.map(t => t.school))).filter(Boolean).map((school, idx) => (
+                    activeSchools.map((school, idx) => (
                       <div key={idx} className="py-2.5 flex items-center justify-between text-xs border-b border-blue-900/30">
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <strong className="text-slate-100 block">{school}</strong>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#facc15]" />
+                          <strong className="text-slate-100 block">{school.name}</strong>
                         </div>
-                        <span className="text-[10px] text-blue-300 font-mono">ACTIVE</span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">ONLINE</span>
                       </div>
                     ))
                   )}
                 </div>
 
                 <div className="pt-4 border-t border-blue-900 text-[11px] text-blue-200 flex justify-between items-center bg-transparent">
-                  <span>ผู้จัดทำ: Mr.Siam Chaingkhua 🏫 :: school director</span>
+                  <span>ผู้จัดทำ: Mr.Siam  Chaingkhua ::👨‍🏫:: school director</span>
                   <Award className="w-4 h-4 text-[#facc15]" />
                 </div>
               </div>
@@ -319,9 +330,8 @@ export default function App() {
 
                 <div className="p-3 bg-slate-50 rounded-lg space-y-2 border border-[#e2e8f0] text-xs">
                   <span className="font-bold text-[#1e40af] block border-b border-[#e2e8f0] pb-1">สำหรับผู้ดูแลควบคุมสถานศึกษา (Admin)</span>
-                  <p className="font-mono text-[11px] leading-relaxed text-slate-600">
-                    ชื่อผู้ใช้: <span className="underline select-all text-slate-900 font-semibold">admin</span> <br />
-                    รหัสผ่าน: <span className="underline select-all text-slate-900 font-semibold">admin123</span>
+                  <p className="font-mono text-[11px] leading-relaxed text-slate-600 italic">
+                    กรุณาใช้บัญชีผู้ดูแลระบบที่ได้รับอนุญาตในการเข้าถึงส่วนนี้
                   </p>
                 </div>
               </div>
