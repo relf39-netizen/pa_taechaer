@@ -560,9 +560,8 @@ function doGet(e) {
                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-4 px-5">
                             <span className="font-bold text-slate-800 text-sm block">{t.name}</span>
-                            <span className="text-slate-400 text-[10px] break-all">{t.email}</span>
                             {t.idCard && (
-                              <span className="text-slate-500 text-[10px] block font-mono">ID: {t.idCard}</span>
+                              <span className="text-slate-500 text-[10px] block font-mono">หมายเลขประจำตัว: {t.idCard}</span>
                             )}
                           </td>
                           <td className="py-4 px-5">

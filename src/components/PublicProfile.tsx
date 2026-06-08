@@ -154,11 +154,22 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
   const [activeTab, setActiveTab] = useState<"part1" | "part2">("part1");
   const [openIndicatorId, setOpenIndicatorId] = useState<string | null>("1.1");
 
-  // Evidence Showcase Modal State
+  // Indicator Showcase Modal State (For the whole indicator details)
+  const [selectedIndForModal, setSelectedIndForModal] = useState<PAIndicator | null>(null);
+  const [showIndModal, setShowIndModal] = useState(false);
+
+  // Evidence Showcase Modal State (For a specific link/file)
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceLink | null>(null);
   const [showModal, setShowModal] = useState(false);
 
+  const handleOpenIndicatorModal = (ind: PAIndicator) => {
+    setSelectedIndForModal(ind);
+    setShowIndModal(true);
+  };
+
   const handleOpenEvidence = (link: EvidenceLink) => {
+    // If it's a PDF, we might want to open directly in some cases, 
+    // but the user asked for a pop-up that shows PDF nicely.
     setSelectedEvidence(link);
     setShowModal(true);
   };
@@ -467,7 +478,17 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                           </span>
                           <span className="text-sm font-semibold text-slate-800 text-left line-clamp-1">{ind.title}</span>
                         </div>
-                        <div className="flex items-center gap-3 ml-2">
+                        <div className="flex items-center gap-3 ml-2 text-blue-600">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenIndicatorModal(ind);
+                            }}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg shadow-sm transition-all transform hover:scale-105 border-none cursor-pointer"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            เปิดดูงาน
+                          </button>
                           {ind.status === "completed" && (
                             <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-150">
                               <CheckCircle2 className="w-3 h-3" /> สำเร็จแล้ว
@@ -567,6 +588,16 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                           <span className="text-sm font-semibold text-slate-800 text-left line-clamp-1">{ind.title}</span>
                         </div>
                         <div className="flex items-center gap-3 ml-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenIndicatorModal(ind);
+                            }}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg shadow-sm transition-all transform hover:scale-105 border-none cursor-pointer"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            เปิดดูงาน
+                          </button>
                           {ind.status === "completed" && (
                             <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-150">
                               <CheckCircle2 className="w-3 h-3" /> สำเร็จแล้ว
@@ -666,6 +697,16 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                           <span className="text-sm font-semibold text-slate-800 text-left line-clamp-1">{ind.title}</span>
                         </div>
                         <div className="flex items-center gap-3 ml-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenIndicatorModal(ind);
+                            }}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg shadow-sm transition-all transform hover:scale-105 border-none cursor-pointer"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            เปิดดูงาน
+                          </button>
                           {ind.status === "completed" && (
                             <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-150">
                               <CheckCircle2 className="w-3 h-3" /> สำเร็จแล้ว
@@ -1039,6 +1080,130 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
           </div>
         )}
       </AnimatePresence>
+
+      {/* NEW: INDICATOR DETAILS POPUP MODAL (Request 6) */}
+      <AnimatePresence>
+        {showIndModal && selectedIndForModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-5xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+            >
+              {/* Modal Banner Header */}
+              <div className={`${resolvedTheme.primaryBg} px-8 py-6 text-white flex justify-between items-center relative overflow-hidden`}>
+                <div className="absolute right-0 top-0 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4">
+                  <Award className="w-48 h-48" />
+                </div>
+                <div className="relative z-10 flex items-center gap-4">
+                  <div className={`${resolvedTheme.accentBg} text-slate-900 p-3 rounded-2xl shadow-lg`}>
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mb-1">รายละเอียดตัวชี้วัด (Indicator Details)</h4>
+                    <h2 className="text-lg md:text-xl font-extrabold leading-tight">ตัวชี้วัด {selectedIndForModal.id}: {selectedIndForModal.title}</h2>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowIndModal(false)}
+                  className="p-3 hover:bg-white/10 rounded-full transition-all border-none bg-transparent cursor-pointer text-white relative z-10"
+                >
+                  <X className="w-7 h-7" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6 md:p-10 space-y-8">
+                {/* 1. Description Header */}
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-widest">คำอธิบายแนวทางการปฏิบัติงาน</span>
+                  </div>
+                  <p className="text-base md:text-lg text-slate-700 leading-relaxed font-sans whitespace-pre-wrap">
+                    {selectedIndForModal.description || "คุณครูยังไม่ได้ระบุรายละเอียดประกอบตัวชี้วัดนี้"}
+                  </p>
+                </div>
+
+                {/* 2. Evidence Showcase List */}
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3 px-4">
+                     <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">รายการหลักฐานที่พบ ({selectedIndForModal.evidenceLinks.length})</span>
+                     <div className="h-px flex-1 bg-slate-200"></div>
+                   </div>
+
+                   {selectedIndForModal.evidenceLinks.length === 0 ? (
+                     <div className="text-center py-12 bg-white rounded-[2rem] border border-dashed border-slate-300">
+                        <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                        <p className="text-sm text-slate-400 italic">ไม่มีข้อมูลการแนบหลักฐานสำหรับตัวชี้วัดนี้</p>
+                     </div>
+                   ) : (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {selectedIndForModal.evidenceLinks.map(link => (
+                          <div 
+                            key={link.id}
+                            className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col h-full group"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                               <div className="flex items-center gap-3">
+                                  <div className={`p-2.5 rounded-2xl ${link.displayMode === 'activity' ? 'bg-blue-50 text-blue-600' : link.displayMode === 'certificate' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
+                                    {link.displayMode === 'activity' ? <ImageIcon className="w-5 h-5" /> : link.displayMode === 'certificate' ? <Award className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                                  </div>
+                                  <div>
+                                    <h5 className="font-extrabold text-slate-800 text-sm">{link.name}</h5>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase">{link.displayMode || 'เอกสาร'}</span>
+                                  </div>
+                               </div>
+                               <button 
+                                 onClick={() => {
+                                   handleOpenEvidence(link);
+                                 }}
+                                 className="p-2.5 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-xl text-slate-400 transition-all cursor-pointer border-none"
+                               >
+                                 <PlayCircle className="w-5 h-5" />
+                               </button>
+                            </div>
+
+                            {/* PREVIEW IMAGE/PDF INSIDE MODAL */}
+                            <div className="flex-1 bg-slate-900 rounded-[1.5rem] overflow-hidden aspect-[16/9] relative mb-4">
+                               {link.displayMode === 'activity' ? (
+                                  <div className="grid grid-cols-2 h-full gap-0.5">
+                                     <img src={link.url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                     <img src={link.secondaryUrl || link.url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  </div>
+                               ) : (
+                                  <img src={link.url} className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
+                               )}
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => handleOpenEvidence(link)} className="px-6 py-2 bg-white text-slate-900 rounded-full text-xs font-bold shadow-xl transform scale-90 group-hover:scale-100 transition-transform">คลิกเพื่อขยายดูพอร์ต</button>
+                               </div>
+                            </div>
+
+                            {link.description && (
+                              <p className="text-xs text-slate-600 leading-relaxed italic line-clamp-2 px-2">"{link.description}"</p>
+                            )}
+                          </div>
+                        ))}
+                     </div>
+                   )}
+                </div>
+              </div>
+
+              <div className="p-6 bg-white border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setShowIndModal(false)}
+                  className="px-10 py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-all border-none cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

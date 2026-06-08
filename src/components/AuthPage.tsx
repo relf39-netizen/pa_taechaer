@@ -61,6 +61,13 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
     }
   }, [regName, activeTab]);
 
+  // Handle setting default internal email when ID Card changes
+  useEffect(() => {
+    if (regIdCard && activeTab === "register") {
+      setRegEmail(`${regIdCard.trim()}@pa.local`);
+    }
+  }, [regIdCard, activeTab]);
+
   // Load schools list on tab shift to assist signup selection
   useEffect(() => {
     if (activeTab === "register") {
@@ -330,12 +337,12 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
               >
                 <div>
                   <h3 className="text-xl font-bold font-sans text-slate-800 mb-2">
-                    {loginRole === "admin" ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" : "เข้าสู่ระบบเพื่อแก้ไขตัวชี้วัด PA"}
+                    {loginRole === "admin" ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" : "เข้าสู่ระบบด้วยหมายเลขประจำตัวประชาชน"}
                   </h3>
                   <p className="text-sm font-sans text-slate-500">
                     {loginRole === "admin" 
                       ? "อนุมัติโรงเรียนเครือข่าย มอบอำนวยการระบบและตรวจสอบสิทธิ์แอดมินย่อย" 
-                      : "กรอกข้อมูลอีเมลและรหัสผ่านเพื่อเข้าใช้งานแบบฟอร์มบันทึกตัวชี้วัดข้อตกลงการพัฒงาน"}
+                      : "กรอกหมายเลขประจำตัวประชาชน 13 หลัก และรหัสผ่านเพื่อเข้าใช้งาน"}
                   </p>
                   
                   {loginRole === "admin" && (
@@ -352,7 +359,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold font-sans text-slate-600 uppercase tracking-wider mb-2">
-                      {loginRole === "admin" ? "ชื่อบัญชีผู้ดูแลระบบ" : "อีเมลผู้ใช้งานครู (Email Address)"}
+                      {loginRole === "admin" ? "ชื่อบัญชีผู้ดูแลระบบ" : "หมายเลขประจำตัวประชาชน (13 หลัก)"}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -363,7 +370,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                         required
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder={loginRole === "admin" ? "admin" : "ตัวอย่าง: mana@samsen.ac.th"}
+                        placeholder={loginRole === "admin" ? "admin" : "ตัวอย่าง: 1234567890123"}
                         className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans transition-all"
                         id="login-email-input"
                       />
@@ -394,9 +401,9 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                 {/* Demonstration Alert Banner */}
                 {loginRole === "teacher" && (
                   <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 leading-relaxed font-sans">
-                    💡 <strong>บัญชีตัวอย่างสำหรับทดลองสิทธิ์:</strong><br />
-                    ครูชำนาญการพิเศษ: <span className="underline font-mono">mana@samsen.ac.th</span> (รหัสผ่านใดก็ได้)<br />
-                    คุณครู ค.ศ.1: <span className="underline font-mono">piti@triamudom.ac.th</span> (รหัสผ่านใดก็ได้)
+                    💡 <strong>หมายเลขประจำตัวสำหรับทดลองสิทธิ์:</strong><br />
+                    คุณครูมานะ (แอดมิน): <span className="underline font-mono">1030010100001</span> (รหัสผ่านใดก็ได้)<br />
+                    คุณครูปิติ (ครูทั่วไป): <span className="underline font-mono">1030010100002</span> (รหัสผ่านใดก็ได้)
                   </div>
                 )}
 
@@ -561,8 +568,8 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
                         <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
                           ชื่อ-นามสกุลของคุณครู <span className="text-rose-500">*</span>
                         </label>
@@ -578,26 +585,6 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                             placeholder="ครูสมคิด มุ่งมั่น"
                             className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
                             id="reg-name-input"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold font-sans text-slate-600 mb-1.5">
-                          อีเมลสิทธิ์ใช้งาน (ใช้ในการเข้าสู่ระบบ) <span className="text-rose-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Mail className="h-4 w-4 text-slate-400" />
-                          </div>
-                          <input
-                            type="email"
-                            required
-                            value={regEmail}
-                            onChange={(e) => setRegEmail(e.target.value)}
-                            placeholder="somkid@school.go.th"
-                            className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans"
-                            id="reg-email-input"
                           />
                         </div>
                       </div>

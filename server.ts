@@ -224,6 +224,7 @@ function getInitialState(): DBState {
     "mana@samsen.ac.th": {
       id: manaId,
       email: "mana@samsen.ac.th",
+      idCard: "1030010100001",
       name: "ครูมานะ รักการสอน",
       position: "ครูวิทยฐานะชำนาญการพิเศษ",
       school: "โรงเรียนบ้านหนองหว้า",
@@ -239,6 +240,7 @@ function getInitialState(): DBState {
     "piti@triamudom.ac.th": {
       id: pitiId,
       email: "piti@triamudom.ac.th",
+      idCard: "1030010100002",
       name: "ครูปิติ มีวิชา",
       position: "ครู ค.ศ. 1 (ไม่มีวิทยฐานะ)",
       school: "โรงเรียนบ้านหนองหว้า",

@@ -648,6 +648,12 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         return;
       }
 
+      // Requirement: Force 2 images for Activity display mode
+      if (evidenceDisplayMode === 'activity' && !uploadFileBase64Secondary) {
+        triggerToast("error", "การแนบภาพกิจกรรม ต้องแนบอย่างน้อย 2 ภาพ (บังคับตามระเบียบระบบ)");
+        return;
+      }
+
       setIsUploading(true);
       try {
         let finalUrl = "";

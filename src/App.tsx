@@ -314,11 +314,11 @@ export default function App() {
                 <div className="p-3 bg-slate-50 rounded-lg space-y-2 border border-[#e2e8f0] text-xs">
                   <span className="font-bold text-[#1e40af] block border-b border-[#e2e8f0] pb-1">สำหรับเข้าแก้ไขข้อมูลครู (Teacher)</span>
                   <p className="font-mono text-[11px] leading-relaxed text-slate-600">
-                    อีเมล: <span className="underline select-all text-slate-900 font-semibold">mana@samsen.ac.th</span> <br />
+                    เลขประจำตัวประชาชน: <span className="underline select-all text-slate-900 font-semibold">1234567890123</span> <br />
                     รหัสผ่าน: <span className="text-slate-900 font-medium">อะไรก็ได้</span> (เช่น 1234)
                   </p>
                   <p className="font-mono text-[11px] leading-relaxed mt-1 text-slate-600">
-                    อีเมล: <span className="underline select-all text-slate-900 font-semibold">piti@triamudom.ac.th</span> <br />
+                    เลขประจำตัวประชาชน: <span className="underline select-all text-slate-900 font-semibold">9876543210987</span> <br />
                     รหัสผ่าน: <span className="text-slate-900 font-medium">อะไรก็ได้</span>
                   </p>
                 </div>
