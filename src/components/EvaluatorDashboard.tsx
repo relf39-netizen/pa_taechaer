@@ -21,18 +21,18 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   // Evaluation form state
   const [part1Score, setPart1Score] = useState<number>(0);
   const [part2Score, setPart2Score] = useState<number>(0);
-  const [comments, setComments] = useState("");
+  const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     fetchTeachers();
-  }, [evaluator.smissCode]);
+  }, [evaluator.schoolSmissCode]);
 
   const fetchTeachers = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/evaluator/teachers?smissCode=${evaluator.smissCode}&evaluatorId=${evaluator.id}`);
+      const res = await fetch(`/api/evaluator/teachers?smissCode=${evaluator.schoolSmissCode}&evaluatorId=${evaluator.id}`);
       const data = await res.json();
       if (data.success) {
         setTeachers(data.teachers || []);
@@ -53,7 +53,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
     setSelectedTeacher(teacher);
     setPart1Score(teacher.evaluation?.part1Score || 0);
     setPart2Score(teacher.evaluation?.part2Score || 0);
-    setComments(teacher.evaluation?.comments || "");
+    setComment(teacher.evaluation?.comment || "");
     setViewingPortfolio(false);
   };
 
@@ -74,7 +74,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
           teacherId: selectedTeacher.id,
           part1Score,
           part2Score,
-          comments
+          comment
         })
       });
       if (res.ok) {
@@ -325,8 +325,8 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
                   </label>
                   <textarea
                     rows={4}
-                    value={comments}
-                    onChange={(e) => setComments(e.target.value)}
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
                     placeholder="กรอกรายละเอียดความเห็นเพิ่มเติมเพื่อให้คุณครูนำไปพัฒนาต่อยอดงานในวิชาชีพ..."
                     className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none font-sans text-sm outline-none"
                   />

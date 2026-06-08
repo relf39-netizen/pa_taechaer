@@ -200,6 +200,8 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [isSchoolLoading, setIsSchoolLoading] = useState(false);
   const [newCommName, setNewCommName] = useState("");
   const [newCommTitle, setNewCommTitle] = useState("ผู้ทรงคุณวุฒิ");
+  const [newCommUsername, setNewCommUsername] = useState("");
+  const [newCommPassword, setNewCommPassword] = useState("");
 
   // Evaluator management states
   const [evaluators, setEvaluators] = useState<any[]>([]);
@@ -402,23 +404,67 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   };
 
   // Add Committee member tag
-  const handleAddCommitteeMember = () => {
-    if (!newCommName.trim()) {
-      triggerToast("error", "กรุณากรอกชื่อ-นามสกุลกรรมการประเมิน");
+  const handleAddCommitteeMember = async () => {
+    if (!newCommName.trim() || !newCommUsername.trim() || !newCommPassword.trim()) {
+      triggerToast("error", "กรุณากรอกข้อมูลกรรมการให้ครบถ้วน (รวม Username/Password)");
       return;
     }
-    const newM = {
-      id: "comm-" + Date.now(),
-      name: newCommName.trim(),
-      title: newCommTitle
-    };
-    setCommitteeMembers(prev => [...prev, newM]);
-    setNewCommName("");
+
+    try {
+      // 1. Create Evaluator Account in backend
+      const res = await fetch("/api/school/evaluators/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: data.teacher.schoolSmissCode,
+          name: newCommName.trim(),
+          username: newCommUsername.trim(),
+          password: newCommPassword.trim(),
+          position: newCommTitle
+        })
+      });
+      const resData = await res.json();
+      
+      if (!res.ok) throw new Error(resData.message || "ล้มเหลวในการสร้างบัญชี");
+
+      // 2. Add to Local Display List with the generated ID
+      const newM = {
+        id: resData.evaluator.id,
+        name: newCommName.trim(),
+        title: newCommTitle,
+        username: newCommUsername.trim(),
+        password: newCommPassword.trim()
+      };
+      setCommitteeMembers(prev => [...prev, newM]);
+      
+      // Clear inputs
+      setNewCommName("");
+      setNewCommUsername("");
+      setNewCommPassword("");
+      triggerToast("success", "เพิ่มกรรมการและสร้างบัญชีเข้าใช้งานสำเร็จ");
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    }
   };
 
   // Remove Committee member tag
-  const handleRemoveCommitteeMember = (id: string) => {
-    setCommitteeMembers(prev => prev.filter(m => m.id !== id));
+  const handleRemoveCommitteeMember = async (id: string, name: string) => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบกรรมการ "${name}" และบัญชีเข้าใช้งานของกรรมการท่านนี้?`)) return;
+    
+    try {
+      // 1. Remove from Evaluator accounts
+      await fetch("/api/school/evaluators/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+
+      // 2. Update Local List
+      setCommitteeMembers(prev => prev.filter(m => m.id !== id));
+      triggerToast("success", "ลบข้อมูลกรรมการเรียบร้อยแล้ว");
+    } catch (err: any) {
+      triggerToast("error", "เกิดข้อผิดพลาดในการลบ");
+    }
   };
 
   // Update School Teacher approval state status 
@@ -2476,20 +2522,32 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                           ) : (
                             <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                               {committeeMembers.map((member) => (
-                                <div key={member.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-xs">
-                                  <div>
-                                    <span className="font-semibold text-slate-800">{member.name}</span>
-                                    <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-705 px-1.5 py-0.5 rounded">
-                                      {member.title}
-                                    </span>
+                                <div key={member.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-xs">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div>
+                                      <span className="font-semibold text-slate-800">{member.name}</span>
+                                      <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-705 px-1.5 py-0.5 rounded">
+                                        {member.title}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveCommitteeMember(member.id, member.name)}
+                                      className="text-rose-500 hover:text-rose-600 p-1 border-none bg-transparent cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveCommitteeMember(member.id)}
-                                    className="text-rose-500 hover:text-rose-600 p-1 border-none bg-transparent cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {(member.username || member.password) && (
+                                    <div className="flex items-center gap-3 mt-1 pt-1.5 border-t border-slate-100 font-mono text-[10px] text-slate-500">
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-bold">User:</span> {member.username || "-"}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-bold">Pass:</span> {member.password || "-"}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -2497,19 +2555,45 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
 
                           {/* Quick Add committee member */}
                           <div className="mt-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                                ชื่อ-นามสกุล และวิทยฐานะกรรมการหลัก
-                              </label>
-                              <input
-                                type="text"
-                                value={newCommName}
-                                onChange={(e) => setNewCommName(e.target.value)}
-                                placeholder="เช่น ดร.วิทยา ใจแข็ง (ศึกษานิเทศก์ชำนาญการ)"
-                                className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
-                              />
-                            </div>
                             <div className="grid grid-cols-2 gap-2">
+                              <div className="col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                  ชื่อ-นามสกุล และวิทยฐานะกรรมการหลัก
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newCommName}
+                                  onChange={(e) => setNewCommName(e.target.value)}
+                                  placeholder="เช่น ดร.วิทยา ใจแข็ง (ศึกษานิเทศก์ชำนาญการ)"
+                                  className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
+                                />
+                              </div>
+                              <div className="col-span-1">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                  Username (ชื่อผู้ใช้)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newCommUsername}
+                                  onChange={(e) => setNewCommUsername(e.target.value)}
+                                  placeholder="กำหนดชื่อผู้ใช้"
+                                  className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
+                                />
+                              </div>
+                              <div className="col-span-1">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                  Password (รหัสผ่าน)
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={newCommPassword}
+                                    onChange={(e) => setNewCommPassword(e.target.value)}
+                                    placeholder="กำหนดรหัสผ่าน"
+                                    className="block w-full px-2.5 py-1.5 border border-slate-200 bg-white rounded-lg text-xs"
+                                  />
+                                </div>
+                              </div>
                               <div>
                                 <label className="block text-[10px] font-bold text-slate-500 mb-1">
                                   ตำแหน่งในบอร์ด
@@ -2531,7 +2615,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                                   onClick={handleAddCommitteeMember}
                                   className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold border-none cursor-pointer"
                                 >
-                                  เพิ่มเข้ารายชื่อ
+                                  เพิ่มเข้ารายชื่อ+สร้างบัญชี
                                 </button>
                               </div>
                             </div>
@@ -2828,105 +2912,6 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                         </button>
                       </div>
                     </form>
-                  </div>
-
-                  {/* BOTTOM ROW: EVALUATOR ACCOUNT MANAGEMENT */}
-                  <div className="lg:col-span-12 bg-white rounded-xl border border-slate-200 p-5 shadow-sm mt-6">
-                    <div className="pb-3 border-b border-slate-100 mb-4">
-                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        🕵️ บัญชีรายชื่อกรรมการผู้ประเมิน ({evaluators.length} บัญชี)
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        สร้างและจัดการบัญชีสำหรับกรรมการเพื่อให้สามารถล็อกอินเข้ามาชมพอร์ตโฟลิโอและให้คะแนนการประเมิน PA
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Form to add evaluator */}
-                      <div className="md:col-span-1 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">➕ เพิ่มบัญชีกรรมการใหม่</h4>
-                        <form onSubmit={handleAddEvaluator} className="space-y-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ชื่อ-นามสกุลกรรมการ</label>
-                            <input
-                              type="text"
-                              value={newEvalName}
-                              onChange={(e) => setNewEvalName(e.target.value)}
-                              placeholder="เช่น นายปรีชา สุขใจ"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ชื่อผู้ใช้งาน (Username)</label>
-                            <input
-                              type="text"
-                              value={newEvalUsername}
-                              onChange={(e) => setNewEvalUsername(e.target.value)}
-                              placeholder="เช่น eval001"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">รหัสผ่าน (Password)</label>
-                            <input
-                              type="text"
-                              value={newEvalPassword}
-                              onChange={(e) => setNewEvalPassword(e.target.value)}
-                              placeholder="ระบุรหัสผ่าน"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ตำแหน่ง/หน้าที่</label>
-                            <input
-                              type="text"
-                              value={newEvalPosition}
-                              onChange={(e) => setNewEvalPosition(e.target.value)}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold border-none cursor-pointer transition-colors"
-                          >
-                            สร้างบัญชีกรรมการ
-                          </button>
-                        </form>
-                      </div>
-
-                      {/* List of evaluators */}
-                      <div className="md:col-span-2 space-y-3">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">📁 รายชื่อบัญชีกรรมการในระบบ</h4>
-                        {evaluators.length === 0 ? (
-                          <div className="text-center py-12 text-slate-400 italic text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            ยังไม่มีการสร้างบัญชีกรรมการสำหรับโรงเรียนนี้
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[350px] pr-1">
-                            {evaluators.map((evaluator) => (
-                              <div key={evaluator.id} className="p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-colors shadow-sm flex flex-col justify-between">
-                                <div className="space-y-1">
-                                  <h5 className="font-bold text-slate-800 text-xs">{evaluator.name}</h5>
-                                  <p className="text-[10px] text-slate-500">{evaluator.position}</p>
-                                  <div className="mt-2 text-[10px] bg-slate-100 p-2 rounded-lg space-y-1">
-                                    <p className="font-mono text-slate-700"><span className="font-bold">Username:</span> {evaluator.username}</p>
-                                    <p className="font-mono text-slate-700"><span className="font-bold">Password:</span> {evaluator.password}</p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteEvaluator(evaluator.id)}
-                                  className="mt-3 flex items-center justify-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-[10px] font-bold border border-rose-100 cursor-pointer transition-colors"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  ลบบัญชีนี้
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
