@@ -867,54 +867,61 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowModal(false)}
-              className="absolute inset-0 bg-slate-900/90 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-900/95 backdrop-blur-md"
             ></motion.div>
 
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="relative w-full max-w-5xl max-h-full bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+              className="relative w-full max-w-5xl max-h-full bg-white rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/20"
             >
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-2xl ${
+              <div className="px-6 md:px-8 py-5 md:py-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${
                     selectedEvidence.displayMode === 'activity' ? 'bg-blue-50 text-blue-600' :
                     selectedEvidence.displayMode === 'certificate' ? 'bg-amber-50 text-amber-600' :
-                    'bg-slate-100 text-slate-600'
+                    'bg-slate-100 text-slate-600 border border-slate-200'
                   }`}>
-                    {selectedEvidence.displayMode === 'activity' ? <ImageIcon className="w-5 h-5" /> :
-                     selectedEvidence.displayMode === 'certificate' ? <Award className="w-5 h-5" /> :
-                     <FileText className="w-5 h-5" />}
+                    {selectedEvidence.displayMode === 'activity' ? <ImageIcon className="w-6 h-6" /> :
+                     selectedEvidence.displayMode === 'certificate' ? <Award className="w-6 h-6" /> :
+                     <FileText className="w-6 h-6" />}
                   </div>
                   <div>
-                    <h3 className="text-sm md:text-base font-extrabold text-slate-900 leading-tight pr-4">{selectedEvidence.name}</h3>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-0.5">
+                    <h3 className="text-base md:text-xl font-extrabold text-slate-900 leading-tight pr-4">{selectedEvidence.name}</h3>
+                    <p className="text-[10px] md:text-[11px] text-slate-500 uppercase tracking-[0.2em] font-bold mt-1">
                       {selectedEvidence.displayMode === 'activity' ? '📁 ชุดร่องรอยกิจกรรมเชิงประจักษ์' : 
-                       selectedEvidence.displayMode === 'certificate' ? '🏆 เกียรติบัตรและเครื่องยืนยันความสำเร็จ' : '📄 เอกสาร/คู่มือ/หลักฐานประกอบ'}
+                       selectedEvidence.displayMode === 'certificate' ? '🏆 เกียรติบัตรและเครื่องยืนยันความสำเร็จ' : '📄 เอกสารและไฟล์ประกอบหลักฐาน'}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition-colors border-none bg-transparent cursor-pointer text-slate-400 hover:text-slate-900"
+                  className="p-2.5 hover:bg-slate-100 rounded-full transition-all border-none bg-transparent cursor-pointer text-slate-400 hover:text-rose-500"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-7 h-7" />
                 </button>
               </div>
 
               {/* Modal Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 bg-[#f8fafc]">
+              <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-12 bg-slate-50/50">
                 
                 {/* 1. Header Hero / Description Section */}
                 {selectedEvidence.description && (
-                  <div className="max-w-3xl mx-auto text-center space-y-4">
-                    <div className="inline-block p-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-bold uppercase tracking-widest px-3">
-                      รายละเอียดประกอบการพิจารณา
+                  <div className="max-w-3xl mx-auto space-y-5">
+                    <div className="flex items-center gap-3">
+                       <div className="h-px flex-1 bg-blue-100"></div>
+                       <div className="inline-block p-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-extrabold uppercase tracking-[0.15em] px-4 py-1.5 shadow-sm border border-blue-100">
+                         รายละเอียดประกอบ
+                       </div>
+                       <div className="h-px flex-1 bg-blue-100"></div>
                     </div>
-                    <div className="bg-white/80 p-8 rounded-[2.5rem] border border-blue-100/50 shadow-xl shadow-blue-900/5 relative">
-                      <p className="text-sm md:text-base text-slate-700 leading-relaxed font-sans whitespace-pre-wrap text-left">
+                    <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-blue-100 shadow-xl shadow-blue-950/5 relative group">
+                      <div className="absolute -top-4 -left-4 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg rotate-[-15deg]">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <p className="text-base md:text-lg text-slate-700 leading-relaxed font-sans whitespace-pre-wrap text-left antialiased">
                         {selectedEvidence.description}
                       </p>
                     </div>
@@ -984,9 +991,10 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                       </div>
                       
                       <div className="flex-1 bg-slate-100 relative min-h-[500px]">
-                        {selectedEvidence.url.toLowerCase().endsWith('.pdf') ? (
+                        {(selectedEvidence.url.toLowerCase().endsWith('.pdf') || 
+                          (selectedEvidence.url.includes('drive.google.com') && selectedEvidence.displayMode === 'document')) ? (
                           <iframe 
-                            src={`${selectedEvidence.url}#toolbar=0`} 
+                            src={`${selectedEvidence.url.replace('/view', '/preview')}#toolbar=0`} 
                             className="w-full h-full border-none absolute inset-0"
                             title="Evidence PDF Preview"
                           ></iframe>
