@@ -20,7 +20,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   
   // Evaluation form state
   const [part1Scores, setPart1Scores] = useState<number[]>(new Array(15).fill(0));
-  const [part2Scores, setPart2Scores] = useState<number[]>(new Array(11).fill(0)); // 0-4: Method, 5-7: Quant, 8-10: Qual
+  const [part2Scores, setPart2Scores] = useState<number[]>(new Array(3).fill(0)); // 0: Method, 1: Quant, 2: Qual
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -34,24 +34,10 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
     "3.1 พัฒนาตนเองอย่างเป็นระบบ", "3.2 มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ (PLC)", "3.3 นำความรู้มาใช้ในการพัฒนาการเรียนรู้"
   ];
 
-  const part2MethodLabels = [
-    "กระบวนการวางแผนและออกแบบแนวทางแก้ปัญหา",
-    "การดำเนินการตามแผนงานในระยะเริ่มแรก",
-    "การปรับปรุงและพัฒนาคุณภาพอย่างต่อเนื่อง",
-    "การใช้เทคโนโลยีหรือนวัตกรรมสนับสนุนการทำงาน",
-    "การทำงานร่วมกับเพื่อนครูและเครือข่ายวิชาชีพ"
-  ];
-
-  const part2QuantLabels = [
-    "ผลสัมฤทธิ์ทางการเรียนของผู้เรียน (เชิงปริมาณ)",
-    "ทักษะกระบวนการเรียนรู้ (เชิงปริมาณ)",
-    "คุณลักษณะอันพึงประสงค์ (เชิงปริมาณ)"
-  ];
-
-  const part2QualLabels = [
-    "ความลุ่มลึกของคุณภาพกระบวนการจัดการเรียนรู้",
-    "การเปลี่ยนแปลงเชิงพฤติกรรมในเชิงคุณภาพ",
-    "ความยั่งยืนของผลลัพธ์การเรียนรู้"
+  const part2Labels = [
+    "1. วิธีดำเนินการ (พิจารณาจากการดำเนินการที่ถูกต้อง ครบถ้วน เป็นไปตามระยะเวลาที่กำหนดไว้ในข้อตกลง และสะท้อนให้เห็นถึงระดับการปฏิบัติที่คาดหวังตามตำแหน่งและวิทยฐานะ)",
+    "2.1 ผลลัพธ์เชิงปริมาณ (พิจารณาจากการบรรลุเป้าหมายเชิงปริมาณได้ครบถ้วนตามข้อตกลง และมีความถูกต้อง เชื่อถือได้)",
+    "2.2 ผลลัพธ์เชิงคุณภาพ (พิจารณาจากการบรรลุเป้าหมายเชิงคุณภาพได้ครบถ้วน ถูกต้อง เชื่อถือได้ และปรากฏผลต่อคุณภาพผู้เรียนตามข้อตกลง)"
   ];
 
   useEffect(() => {
@@ -81,7 +67,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   const handleSelectTeacher = (teacher: any) => {
     setSelectedTeacher(teacher);
     setPart1Scores(teacher.evaluation?.part1Scores || new Array(15).fill(0));
-    setPart2Scores(teacher.evaluation?.part2Scores || new Array(11).fill(0));
+    setPart2Scores(teacher.evaluation?.part2Scores || new Array(3).fill(0));
     setComment(teacher.evaluation?.comment || "");
     setViewingPortfolio(false);
   };
@@ -132,14 +118,10 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   // Scoring Logic based on weighted percentages
   const scoreP1_sum = part1Scores.reduce((a, b) => a + b, 0); // Max 60 (1:1 ratio)
   
-  const scoreP2_Method_sum = part2Scores.slice(0, 5).reduce((a, b) => a + b, 0); // Max 20 (5 * 4 = 20)
-  const scoreP2_Quant_sum = part2Scores.slice(5, 8).reduce((a, b) => a + b, 0);  // Max 12 (3 * 4 = 12) -> Weight to 10
-  const scoreP2_Qual_sum = part2Scores.slice(8, 11).reduce((a, b) => a + b, 0);  // Max 12 (3 * 4 = 12) -> Weight to 10
-
   const p1Final = scoreP1_sum; 
-  const p2MethodFinal = scoreP2_Method_sum;
-  const p2QuantFinal = scoreP2_Quant_sum > 0 ? (scoreP2_Quant_sum / 12) * 10 : 0;
-  const p2QualFinal = scoreP2_Qual_sum > 0 ? (scoreP2_Qual_sum / 12) * 10 : 0;
+  const p2MethodFinal = (part2Scores[0] || 0) * 5; // Level 4 * 5 = 20
+  const p2QuantFinal = (part2Scores[1] || 0) * 2.5; // Level 4 * 2.5 = 10
+  const p2QualFinal = (part2Scores[2] || 0) * 2.5; // Level 4 * 2.5 = 10
   
   const totalScore = Math.round(p1Final + p2MethodFinal + p2QuantFinal + p2QualFinal);
 
@@ -362,7 +344,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
                 </div>
 
                 {/* Section 2 */}
-                <div className="space-y-10 pt-6">
+                <div className="space-y-6 pt-6">
                   <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-100">
                     <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100">2</div>
                     <div>
@@ -371,37 +353,20 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
                     </div>
                   </div>
 
-                  {/* 2.1 Method */}
-                  <div className="space-y-4">
-                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.1</span>
-                       วิธีดำเนินการ (20 คะแนน)
-                    </h5>
-                    <div className="grid grid-cols-1 gap-3">
-                      {part2MethodLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 0))}
-                    </div>
-                  </div>
-
-                  {/* 2.2 Result A (Quant) */}
-                  <div className="space-y-4">
-                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.2</span>
-                       ผลลัพธ์เชิงปริมาณ (10 คะแนน)
-                    </h5>
-                    <div className="grid grid-cols-1 gap-3">
-                      {part2QuantLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 5))}
-                    </div>
-                  </div>
-
-                  {/* 2.3 Result B (Qual) */}
-                  <div className="space-y-4">
-                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.3</span>
-                       ผลลัพธ์เชิงคุณภาพ (10 คะแนน)
-                    </h5>
-                    <div className="grid grid-cols-1 gap-3">
-                      {part2QualLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 8))}
-                    </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {part2Labels.map((label, idx) => (
+                      <div key={idx} className="space-y-2">
+                        {renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 0)}
+                        <div className="flex justify-between items-center px-4">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            คะแนนเต็ม: {idx === 0 ? "20" : "10"} คะแนน
+                          </span>
+                          <span className="text-[10px] font-black text-blue-600">
+                            ได้: {idx === 0 ? part2Scores[idx] * 5 : part2Scores[idx] * 2.5} คะแนน
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

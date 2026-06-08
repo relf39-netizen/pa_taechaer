@@ -154,6 +154,7 @@ export default function PublicProfile({
   const [teacher, setTeacher] = useState<Teacher | null>(
     initialProvidedTeacherData ? initialProvidedTeacherData.teacher : null
   );
+  const [schoolInfo, setSchoolInfo] = useState<any>(null);
   
   const [isLoading, setIsLoading] = useState(!initialProvidedTeacherData);
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +207,18 @@ export default function PublicProfile({
         }
         setTeacher(resData.teacher);
         setProfileData(resData.data);
+        
+        // Fetch school info for committee members
+        if (resData.teacher?.schoolSmissCode) {
+          const sRes = await fetch("/api/schools");
+          const sData = await sRes.json();
+          if (sData.success) {
+            const mySchool = sData.schools?.find((s: any) => s.smissCode === resData.teacher.schoolSmissCode);
+            if (mySchool) {
+              setSchoolInfo(mySchool);
+            }
+          }
+        }
         
         // Set page title to teacher's name
         if (resData.teacher?.name) {
@@ -896,6 +909,47 @@ export default function PublicProfile({
           </div>
         )}
 
+      </section>
+
+      {/* Evaluation Committee Showcase - New Section */}
+      <section className="max-w-5xl mx-auto px-4 mt-8">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className={`${resolvedTheme.primaryBg} px-6 py-4 flex items-center gap-3`}>
+            <User className="text-white w-5 h-5" />
+            <h3 className="font-bold text-white text-sm">คณะกรรมการร่วมประเมินผลการพัฒนางานตามข้อตกลง (PA)</h3>
+          </div>
+          
+          <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Director / Chairman */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-[#1e3a8a] text-white rounded-full flex items-center justify-center mb-3 shadow-md">
+                <Landmark className="w-6 h-6" />
+              </div>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter mb-1">ประธานกรรมการ</p>
+              <h4 className="font-bold text-slate-900 text-sm">{schoolInfo?.directorName || "ผู้อำนวยการโรงเรียน"}</h4>
+              <p className="text-[11px] text-slate-500 mt-1">ผู้อำนวยการโรงเรียน{teacher.school}</p>
+            </div>
+
+            {/* Committee Members from School Data */}
+            {schoolInfo?.paCommitteeMembers && Array.isArray(schoolInfo.paCommitteeMembers) && schoolInfo.paCommitteeMembers.map((member: any, index: number) => (
+              <div key={index} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mb-3">
+                  <User className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-1">กรรมการประเมิน</p>
+                <h4 className="font-bold text-slate-900 text-sm">{typeof member === 'string' ? member : member.name}</h4>
+                <p className="text-[11px] text-slate-500 mt-1">{typeof member === 'object' ? member.title || "ผู้ทรงคุณวุฒิ" : "ผู้ทรงคุณวุฒิ"}</p>
+              </div>
+            ))}
+
+            {/* Placeholder if none */}
+            {(!schoolInfo?.paCommitteeMembers || schoolInfo.paCommitteeMembers.length === 0) && (
+              <div className="md:col-span-2 flex items-center justify-center border-2 border-dashed border-slate-100 rounded-xl p-6 bg-slate-50/30">
+                 <p className="text-xs text-slate-400 italic">ไม่ได้ระบุรายชื่อกรรมการร่วมประเมินเพิ่มเติมในระบบ</p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Evaluator Footer signature panel */}

@@ -94,7 +94,7 @@ export interface EvaluationResult {
   teacherId: string;
   evaluatorId: string;
   part1Scores: number[]; // Array of 15 scores (1-4 each) -> Max 60
-  part2Scores: number[]; // Array of 11 scores (0-4: Method(20pts), 5-7: Quant(10pts), 8-10: Qual(10pts))
+  part2Scores: number[]; // Array of 3 scores (0-4): 0: Method(20pts), 1: Quant(10pts), 2: Qual(10pts)
   comment?: string;
   updatedAt: string;
 }

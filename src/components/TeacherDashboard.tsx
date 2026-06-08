@@ -203,13 +203,6 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [newCommUsername, setNewCommUsername] = useState("");
   const [newCommPassword, setNewCommPassword] = useState("");
 
-  // Evaluator management states
-  const [evaluators, setEvaluators] = useState<any[]>([]);
-  const [newEvalName, setNewEvalName] = useState("");
-  const [newEvalUsername, setNewEvalUsername] = useState("");
-  const [newEvalPassword, setNewEvalPassword] = useState("");
-  const [newEvalPosition, setNewEvalPosition] = useState("กรรมการการประเมิน PA");
-
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTestingGas, setIsTestingGas] = useState(false);
@@ -278,68 +271,10 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       if (tData.success) {
         setSchoolTeachers(tData.teachers || []);
       }
-
-      // Fetch Evaluator accounts
-      const eRes = await fetch(`/api/school/evaluators?smissCode=${data.teacher.schoolSmissCode}`);
-      const eData = await eRes.json();
-      if (eData.success) {
-        setEvaluators(eData.evaluators || []);
-      }
     } catch (e) {
       console.error("Error loading admin school tools:", e);
     } finally {
       setIsSchoolLoading(false);
-    }
-  };
-
-  const handleAddEvaluator = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEvalName || !newEvalUsername || !newEvalPassword) {
-      triggerToast("error", "กรุณากรอกข้อมูลกรรมการให้ครบถ้วน");
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/school/evaluators/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          smissCode: data.teacher.schoolSmissCode,
-          name: newEvalName,
-          username: newEvalUsername,
-          password: newEvalPassword,
-          position: newEvalPosition
-        })
-      });
-      const resData = await res.json();
-      if (res.ok) {
-        triggerToast("success", "สร้างบัญชีกรรมการสำเร็จ");
-        setEvaluators([...evaluators, resData.evaluator]);
-        setNewEvalName("");
-        setNewEvalUsername("");
-        setNewEvalPassword("");
-      } else {
-        throw new Error(resData.message);
-      }
-    } catch (err: any) {
-      triggerToast("error", err.message);
-    }
-  };
-
-  const handleDeleteEvaluator = async (id: string) => {
-    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีกรรมการนี้?")) return;
-    try {
-      const res = await fetch("/api/school/evaluators/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      if (res.ok) {
-        triggerToast("success", "ลบบัญชีกรรมการสำเร็จ");
-        setEvaluators(evaluators.filter(e => e.id !== id));
-      }
-    } catch (err: any) {
-      triggerToast("error", err.message);
     }
   };
 
@@ -427,7 +362,7 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       
       if (!res.ok) throw new Error(resData.message || "ล้มเหลวในการสร้างบัญชี");
 
-      // 2. Add to Local Display List with the generated ID
+      // 2. Add to Local Display List and auto-save school config
       const newM = {
         id: resData.evaluator.id,
         name: newCommName.trim(),
@@ -435,7 +370,22 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         username: newCommUsername.trim(),
         password: newCommPassword.trim()
       };
-      setCommitteeMembers(prev => [...prev, newM]);
+      
+      const updatedList = [...committeeMembers, newM];
+      setCommitteeMembers(updatedList);
+      
+      // Auto-persist to school setup for profile display
+      await fetch("/api/school/committee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: data.teacher.schoolSmissCode,
+          directorName,
+          paCommitteeMembers: updatedList,
+          driveFolderId,
+          gasWebUrl
+        })
+      });
       
       // Clear inputs
       setNewCommName("");
@@ -459,8 +409,22 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         body: JSON.stringify({ id })
       });
 
-      // 2. Update Local List
-      setCommitteeMembers(prev => prev.filter(m => m.id !== id));
+      // 2. Update Local List and auto-save
+      const updatedList = committeeMembers.filter(m => m.id !== id);
+      setCommitteeMembers(updatedList);
+      
+      await fetch("/api/school/committee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: data.teacher.schoolSmissCode,
+          directorName,
+          paCommitteeMembers: updatedList,
+          driveFolderId,
+          gasWebUrl
+        })
+      });
+
       triggerToast("success", "ลบข้อมูลกรรมการเรียบร้อยแล้ว");
     } catch (err: any) {
       triggerToast("error", "เกิดข้อผิดพลาดในการลบ");
