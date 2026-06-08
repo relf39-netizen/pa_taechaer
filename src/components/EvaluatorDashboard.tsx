@@ -20,41 +20,38 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   
   // Evaluation form state
   const [part1Scores, setPart1Scores] = useState<number[]>(new Array(15).fill(0));
-  const [part2Scores, setPart2Scores] = useState<number[]>(new Array(10).fill(0));
+  const [part2Scores, setPart2Scores] = useState<number[]>(new Array(11).fill(0)); // 0-4: Method, 5-7: Quant, 8-10: Qual
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Indicator Labels mapping
   const part1Labels = [
-    "1.1 สร้างและหรือพัฒนาหลักสูตร",
-    "1.2 ออกแบบการจัดการเรียนรู้",
-    "1.3 จัดกิจกรรมการเรียนรู้",
-    "1.4 สร้างและหรือพัฒนาสื่อ นวัตกรรม",
-    "1.5 วัดและประเมินผลการเรียนรู้",
-    "1.6 ศึกษา วิเคราะห์ เพื่อแก้ปัญหา",
-    "1.7 จัดบรรยากาศที่ส่งเสริมการเรียนรู้",
-    "1.8 อบรมและพัฒนาคุณลักษณะที่ดี",
-    "2.1 จัดทำข้อมูลสารสนเทศผู้เรียน",
-    "2.2 ดำเนินการตามระบบดูแลช่วยเหลือ",
-    "2.3 ปฏิบัติงานวิชาการและงานอื่นๆ",
-    "2.4 ประสานความร่วมมือกับผู้ปกครอง",
-    "3.1 พัฒนาตนเองอย่างเป็นระบบ",
-    "3.2 มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ (PLC)",
-    "3.3 นำความรู้มาใช้ในการพัฒนาการเรียนรู้"
+    "1.1 สร้างและหรือพัฒนาหลักสูตร", "1.2 ออกแบบการจัดการเรียนรู้", "1.3 จัดกิจกรรมการเรียนรู้",
+    "1.4 สร้างและหรือพัฒนาสื่อ นวัตกรรม", "1.5 วัดและประเมินผลการเรียนรู้", "1.6 ศึกษา วิเคราะห์ เพื่อแก้ปัญหา",
+    "1.7 จัดบรรยากาศที่ส่งเสริมการเรียนรู้", "1.8 อบรมและพัฒนาคุณลักษณะที่ดี", "2.1 จัดทำข้อมูลสารสนเทศผู้เรียน",
+    "2.2 ดำเนินการตามระบบดูแลช่วยเหลือ", "2.3 ปฏิบัติงานวิชาการและงานอื่นๆ", "2.4 ประสานความร่วมมือกับผู้ปกครอง",
+    "3.1 พัฒนาตนเองอย่างเป็นระบบ", "3.2 มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ (PLC)", "3.3 นำความรู้มาใช้ในการพัฒนาการเรียนรู้"
   ];
 
-  const part2Labels = [
-    "ประเด็นท้าทาย (เชิงปริมาณ) - ตัวชี้วัดที่ 1",
-    "ประเด็นท้าทาย (เชิงปริมาณ) - ตัวชี้วัดที่ 2",
-    "ประเด็นท้าทาย (เชิงปริมาณ) - ตัวชี้วัดที่ 3",
-    "ประเด็นท้าทาย (เชิงปริมาณ) - ตัวชี้วัดที่ 4",
-    "ประเด็นท้าทาย (เชิงปริมาณ) - ตัวชี้วัดที่ 5",
-    "ประเด็นท้าทาย (เชิงคุณภาพ) - ตัวชี้วัดที่ 1",
-    "ประเด็นท้าทาย (เชิงคุณภาพ) - ตัวชี้วัดที่ 2",
-    "ประเด็นท้าทาย (เชิงคุณภาพ) - ตัวชี้วัดที่ 3",
-    "ประเด็นท้าทาย (เชิงคุณภาพ) - ตัวชี้วัดที่ 4",
-    "ประเด็นท้าทาย (เชิงคุณภาพ) - ตัวชี้วัดที่ 5"
+  const part2MethodLabels = [
+    "กระบวนการวางแผนและออกแบบแนวทางแก้ปัญหา",
+    "การดำเนินการตามแผนงานในระยะเริ่มแรก",
+    "การปรับปรุงและพัฒนาคุณภาพอย่างต่อเนื่อง",
+    "การใช้เทคโนโลยีหรือนวัตกรรมสนับสนุนการทำงาน",
+    "การทำงานร่วมกับเพื่อนครูและเครือข่ายวิชาชีพ"
+  ];
+
+  const part2QuantLabels = [
+    "ผลสัมฤทธิ์ทางการเรียนของผู้เรียน (เชิงปริมาณ)",
+    "ทักษะกระบวนการเรียนรู้ (เชิงปริมาณ)",
+    "คุณลักษณะอันพึงประสงค์ (เชิงปริมาณ)"
+  ];
+
+  const part2QualLabels = [
+    "ความลุ่มลึกของคุณภาพกระบวนการจัดการเรียนรู้",
+    "การเปลี่ยนแปลงเชิงพฤติกรรมในเชิงคุณภาพ",
+    "ความยั่งยืนของผลลัพธ์การเรียนรู้"
   ];
 
   useEffect(() => {
@@ -84,7 +81,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   const handleSelectTeacher = (teacher: any) => {
     setSelectedTeacher(teacher);
     setPart1Scores(teacher.evaluation?.part1Scores || new Array(15).fill(0));
-    setPart2Scores(teacher.evaluation?.part2Scores || new Array(10).fill(0));
+    setPart2Scores(teacher.evaluation?.part2Scores || new Array(11).fill(0));
     setComment(teacher.evaluation?.comment || "");
     setViewingPortfolio(false);
   };
@@ -92,7 +89,7 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
   const handleSaveEvaluation = async () => {
     if (!selectedTeacher) return;
     if (part1Scores.includes(0) || part2Scores.includes(0)) {
-      triggerToast("error", "กรุณาให้คะแนนให้ครบทุกตัวชี้วัด");
+      triggerToast("error", "กรุณาประเมินให้ครบทุกรายการ");
       return;
     }
 
@@ -132,43 +129,53 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
     }
   };
 
-  const scoreP1Total = part1Scores.reduce((a, b) => a + b, 0);
-  const scoreP2Total = part2Scores.reduce((a, b) => a + b, 0);
-  const totalScore = scoreP1Total + scoreP2Total;
+  // Scoring Logic based on weighted percentages
+  const scoreP1_sum = part1Scores.reduce((a, b) => a + b, 0); // Max 60 (1:1 ratio)
+  
+  const scoreP2_Method_sum = part2Scores.slice(0, 5).reduce((a, b) => a + b, 0); // Max 20 (5 * 4 = 20)
+  const scoreP2_Quant_sum = part2Scores.slice(5, 8).reduce((a, b) => a + b, 0);  // Max 12 (3 * 4 = 12) -> Weight to 10
+  const scoreP2_Qual_sum = part2Scores.slice(8, 11).reduce((a, b) => a + b, 0);  // Max 12 (3 * 4 = 12) -> Weight to 10
 
-  const getGrade = (percentage: number) => {
-    if (percentage >= 90) return { label: "ยอดเยี่ยม (ดีเด่น)", color: "text-emerald-600" };
-    if (percentage >= 80) return { label: "ดีเลิศ", color: "text-blue-600" };
-    if (percentage >= 70) return { label: "ดี (ผ่านเกณฑ์)", color: "text-amber-600" };
-    if (percentage >= 60) return { label: "ปานกลาง", color: "text-orange-500" };
+  const p1Final = scoreP1_sum; 
+  const p2MethodFinal = scoreP2_Method_sum;
+  const p2QuantFinal = scoreP2_Quant_sum > 0 ? (scoreP2_Quant_sum / 12) * 10 : 0;
+  const p2QualFinal = scoreP2_Qual_sum > 0 ? (scoreP2_Qual_sum / 12) * 10 : 0;
+  
+  const totalScore = Math.round(p1Final + p2MethodFinal + p2QuantFinal + p2QualFinal);
+
+  const getGrade = (score: number) => {
+    if (score >= 90) return { label: "ยอดเยี่ยม (ดีเด่น)", color: "text-emerald-600" };
+    if (score >= 80) return { label: "ดีเลิศ", color: "text-blue-600" };
+    if (score >= 70) return { label: "ดี (ผ่านเกณฑ์)", color: "text-amber-600" };
+    if (score >= 60) return { label: "ปานกลาง", color: "text-orange-500" };
     return { label: "ต้องปรับปรุง", color: "text-rose-600" };
   };
 
-  const renderIndicatorRow = (label: string, index: number, scores: number[], setter: (val: number[]) => void) => (
-    <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors gap-3">
+  const renderIndicatorRow = (label: string, index: number, scores: number[], setter: (val: number[]) => void, offset: number = 0) => (
+    <div key={index + offset} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 transition-colors gap-4">
       <div className="flex-1">
-        <p className="text-[11px] font-bold text-slate-700">{label}</p>
-        <p className={`text-[10px] font-medium mt-0.5 ${scores[index] > 0 ? "text-blue-600" : "text-slate-400"}`}>
-          {scores[index] > 0 ? getScoreLabel(scores[index]) : "(ยังไม่ประเมิน)"}
+        <p className="text-[12px] font-bold text-slate-800 leading-snug">{label}</p>
+        <p className={`text-[10px] font-medium mt-1 ${scores[index + offset] > 0 ? "text-blue-600" : "text-slate-400"}`}>
+          {scores[index + offset] > 0 ? getScoreLabel(scores[index + offset]) : "(รอดำเนินการให้คะแนน)"}
         </p>
       </div>
-      <div className="flex gap-1.5 shrink-0">
+      <div className="flex gap-2 shrink-0">
         {[1, 2, 3, 4].map((star) => (
           <button
             key={star}
             onClick={() => {
               const newScores = [...scores];
-              newScores[index] = star;
+              newScores[index + offset] = star;
               setter(newScores);
             }}
-            className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center border transition-all ${
-              scores[index] === star 
+            className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center border-2 transition-all ${
+              scores[index + offset] === star 
                 ? "bg-amber-100 border-amber-400 text-amber-600 shadow-sm" 
-                : "bg-white border-slate-200 text-slate-300 hover:border-amber-200"
+                : "bg-white border-slate-100 text-slate-300 hover:border-amber-200"
             }`}
           >
-            <Star className={`w-5 h-5 ${scores[index] >= star ? "fill-amber-400 text-amber-500" : "text-slate-300"}`} />
-            <span className="text-[8px] font-bold uppercase">{star}</span>
+            <Star className={`w-6 h-6 ${scores[index + offset] >= star ? "fill-amber-400 text-amber-500" : "text-slate-200"}`} />
+            <span className="text-[9px] font-black mt-0.5">{star}</span>
           </button>
         ))}
       </div>
@@ -320,95 +327,132 @@ export default function EvaluatorDashboard({ evaluator, onLogout }: EvaluatorDas
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sticky top-0 z-20 bg-white/90 backdrop-blur-md p-4 -m-4 mb-8 border-b border-slate-150 rounded-b-2xl shadow-sm">
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150 text-center">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">ส่วนที่ 1 (Max 60)</p>
-                    <p className="text-xl font-black text-slate-800">{scoreP1Total}</p>
+                {/* Score Summary Box */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sticky top-0 z-20 bg-white/95 backdrop-blur-md p-4 -m-4 mb-8 border-b border-slate-150 rounded-b-3xl shadow-sm">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">ส่วนที่ 1 (Max 60)</p>
+                    <p className="text-2xl font-black text-slate-800">{p1Final}</p>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150 text-center">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">ส่วนที่ 2 (Max 40)</p>
-                    <p className="text-xl font-black text-slate-800">{scoreP2Total}</p>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">ส่วนที่ 2 (Max 40)</p>
+                    <p className="text-2xl font-black text-slate-800">{Math.round(p2MethodFinal + p2QuantFinal + p2QualFinal)}</p>
                   </div>
-                  <div className="bg-blue-600 p-3 rounded-2xl text-white text-center shadow-lg shadow-blue-100">
-                    <p className="text-[10px] font-bold text-blue-100 uppercase tracking-tighter mb-1">คะแนนรวม (100%)</p>
-                    <p className="text-xl font-black">{totalScore}</p>
+                  <div className="bg-blue-600 p-4 rounded-2xl text-white text-center shadow-lg shadow-blue-200">
+                    <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">คะแนนรวมสุทธิ</p>
+                    <p className="text-2xl font-black">{totalScore}/100</p>
                   </div>
-                  <div className="bg-white p-3 rounded-2xl border-2 border-slate-200 text-center shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">ผลการประเมิน</p>
-                    <p className={`text-sm font-extrabold ${getGrade(totalScore).color}`}>{getGrade(totalScore).label}</p>
+                  <div className="bg-white p-3 rounded-2xl border-2 border-slate-100 text-center flex flex-col justify-center">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">ระดับคุณภาพ</p>
+                    <p className={`text-sm font-black leading-tight ${getGrade(totalScore).color}`}>{getGrade(totalScore).label}</p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-100">
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-lg shadow-md shadow-blue-100">1</div>
+                {/* Section 1 */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-100">
+                    <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-100">1</div>
                     <div>
-                      <h4 className="font-bold text-slate-900 text-lg">ส่วนที่ 1: มาตรฐานตำแหน่งและผลการปฏิบัติงาน</h4>
-                      <p className="text-xs text-slate-500">ประเมินตามตัวชี้วัด 3 ด้าน จำนวน 15 รายการ (คะแนนเต็ม 60)</p>
+                      <h4 className="font-bold text-slate-900 text-lg">ส่วนที่ 1: มาตรฐานตำแหน่ง</h4>
+                      <p className="text-xs text-slate-500">การปฏิบัติงานตาม 3 ด้าน 15 ตัวชี้วัด (60 คะแนน)</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 mt-4">
+                  <div className="grid grid-cols-1 gap-3">
                     {part1Labels.map((label, idx) => renderIndicatorRow(label, idx, part1Scores, setPart1Scores))}
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4">
-                  <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-100">
-                    <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-lg shadow-md shadow-indigo-100">2</div>
+                {/* Section 2 */}
+                <div className="space-y-10 pt-6">
+                  <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-100">
+                    <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100">2</div>
                     <div>
-                      <h4 className="font-bold text-slate-900 text-lg">ส่วนที่ 2: ประเด็นท้าทายเพื่อพัฒนาผลลัพธ์</h4>
-                      <p className="text-xs text-slate-500">ประเด็นท้าทาย จำนวน 10 ตัวชี้วัด (คะแนนเต็ม 40)</p>
+                      <h4 className="font-bold text-slate-900 text-lg">ส่วนที่ 2: ประเด็นท้าทาย (PA)</h4>
+                      <p className="text-xs text-slate-500">การพัฒนาผลลัพธ์การเรียนรู้ของผู้เรียน (40 คะแนน)</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 mt-4">
-                    {part2Labels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores))}
+
+                  {/* 2.1 Method */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.1</span>
+                       วิธีดำเนินการ (20 คะแนน)
+                    </h5>
+                    <div className="grid grid-cols-1 gap-3">
+                      {part2MethodLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 0))}
+                    </div>
+                  </div>
+
+                  {/* 2.2 Result A (Quant) */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.2</span>
+                       ผลลัพธ์เชิงปริมาณ (10 คะแนน)
+                    </h5>
+                    <div className="grid grid-cols-1 gap-3">
+                      {part2QuantLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 5))}
+                    </div>
+                  </div>
+
+                  {/* 2.3 Result B (Qual) */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                       <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center text-[10px]">2.3</span>
+                       ผลลัพธ์เชิงคุณภาพ (10 คะแนน)
+                    </h5>
+                    <div className="grid grid-cols-1 gap-3">
+                      {part2QualLabels.map((label, idx) => renderIndicatorRow(label, idx, part2Scores, setPart2Scores, 8))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-8 bg-slate-900 rounded-3xl text-white shadow-2xl relative overflow-hidden">
-                  <h4 className="text-sm font-bold text-blue-300 uppercase tracking-widest mb-6 flex items-center gap-2">
-                    <Trophy className="w-5 h-5" /> สรุปเกณฑ์มาตรฐานระดับคุณภาพ
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10">
-                        <span className="text-xs text-slate-400 font-medium">90 - 100 คะแนน</span>
-                        <span className="text-xs font-bold text-white">ยอดเยี่ยม (ดีเด่น)</span>
+                {/* Table Final Summary */}
+                <div className="p-10 bg-slate-900 rounded-[40px] text-white shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 blur-[100px] -translate-y-1/2 translate-x-1/2 rounded-full"></div>
+                  <div className="relative z-10">
+                    <h4 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-8 flex items-center gap-3">
+                      <Trophy className="w-5 h-5" /> ตารางสรุปเกณฑ์มาตรฐานระดับคุณภาพ
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                      <div className="space-y-2.5">
+                        {[
+                          { range: "90 - 100 คะแนน", label: "ยอดเยี่ยม (ดีเด่น)", color: "text-emerald-400" },
+                          { range: "80 - 89 คะแนน", label: "ดีเลิศ", color: "text-blue-400" },
+                          { range: "70 - 79 คะแนน", label: "ดี (ผ่านเกณฑ์ขั้นต่ำ)", color: "text-amber-400" },
+                          { range: "60 - 69 คะแนน", label: "ปานกลาง", color: "text-slate-400" },
+                          { range: "ต่ำกว่า 60 คะแนน", label: "ต้องปรับปรุง", color: "text-rose-400" },
+                        ].map((g, i) => (
+                          <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl border bg-white/5 border-white/5 transition-all">
+                            <span className="text-xs font-medium text-slate-400">{g.range}</span>
+                            <span className={`text-xs font-black ${g.color}`}>{g.label}</span>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10">
-                        <span className="text-xs text-slate-400 font-medium">80 - 89 คะแนน</span>
-                        <span className="text-xs font-bold text-white">ดีเลิศ</span>
+                      
+                      <div className="bg-white/5 rounded-3xl p-8 border border-white/10 flex flex-col items-center justify-center text-center">
+                        <p className="text-[10px] font-bold text-blue-200 uppercase tracking-[0.2em] mb-4">คะแนนสุทธิรวมทั้งสิ้น</p>
+                        <div className="relative">
+                          <p className="text-7xl font-black text-white">{totalScore}</p>
+                        </div>
+                        <div className="mt-8 px-6 py-3 bg-white/10 rounded-2xl border border-white/20">
+                          <p className={`text-xl font-black ${getGrade(totalScore).color === "text-emerald-600" ? "text-emerald-400" : "text-white"}`}>
+                            {getGrade(totalScore).label}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30">
-                        <span className="text-xs text-emerald-300 font-medium">70 - 79 คะแนน</span>
-                        <span className="text-xs font-black text-emerald-400">ผ่านเกณฑ์เลื่อนวิทยฐานะ</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10">
-                        <span className="text-xs text-slate-400 font-medium">60 - 69 คะแนน</span>
-                        <span className="text-xs font-bold text-white">ปานกลาง</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
-                        <span className="text-xs text-rose-400 font-medium">ต่ำกว่า 60 คะแนน</span>
-                        <span className="text-xs font-bold text-rose-400">ต้องปรับปรุง</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center justify-center bg-white/10 rounded-2xl p-6 border border-white/20">
-                      <p className="text-[10px] font-bold text-blue-200 uppercase mb-2 tracking-widest text-center">ระดับผลการประเมินสุทธิ</p>
-                      <p className="text-5xl font-black text-[#facc15]">{totalScore}</p>
-                      <p className={`mt-3 text-lg font-bold text-center`}>{getGrade(totalScore).label}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                    <MessageSquare className="w-5 h-5 text-blue-500" /> บันทึกข้อความเสนอแนะ
+                    <MessageSquare className="w-5 h-5 text-blue-500" /> บันทึกข้อเสนอแนะเพิ่มเติมจากคณะกรรมการ
                   </label>
                   <textarea
                     rows={6}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="ระบุข้อเสนอแนะ..."
+                    placeholder="ระบุข้อเสนอแนะเชิงบวกและจุดที่ควรพัฒนา..."
                     className="w-full p-5 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-600 focus:outline-none font-sans text-sm outline-none shadow-sm"
                   />
                 </div>
