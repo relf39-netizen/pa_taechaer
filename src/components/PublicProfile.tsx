@@ -169,6 +169,11 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
       setTeacher(initialProvidedTeacherData.teacher);
       setProfileData(initialProvidedTeacherData.data);
       setIsLoading(false);
+      
+      // Set page title to teacher's name
+      if (initialProvidedTeacherData.teacher.name) {
+        document.title = `Portfolio: ${initialProvidedTeacherData.teacher.name} | PA System`;
+      }
       return;
     }
 
@@ -183,6 +188,11 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
         }
         setTeacher(resData.teacher);
         setProfileData(resData.data);
+        
+        // Set page title to teacher's name
+        if (resData.teacher?.name) {
+          document.title = `Portfolio: ${resData.teacher.name} | PA System`;
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -842,11 +852,185 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
 
       {/* Evaluator Footer signature panel */}
       <footer className="max-w-5xl mx-auto px-4 mt-12 text-center text-slate-400 text-xs">
-        <div className="border-t border-slate-200/85 pt-6 space-y-1.5 font-sans">
+        <div className="border-t border-slate-200/85 pt-6 space-y-1.5 font-sans pb-12">
           <p>&copy; ระบบแฟ้มสะสมรายงานข้อตกลงในการพัฒนางาน (PA) ข้าราชการครูและบุคลากรทางการศึกษา</p>
-          <p className="text-[10px] text-slate-400">พัฒนาถูกต้องตามหลักเกณฑ์ สพฐ. เพื่อนำเสนอคณะกรรมการการประเมินผล</p>
+          <p className="text-[10px] text-slate-400 italic">พัฒนาขึ้นเพื่อยกระดับวิชาชีพครูสู่ยุคดิจิทัล &bull; จัดทำเพื่ออำนวยความสะดวกแก่คณะกรรมการประเมินวิทยฐานะ</p>
         </div>
       </footer>
+
+      {/* Evidence Showcase Modal */}
+      <AnimatePresence mode="wait">
+        {showModal && selectedEvidence && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-10 overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowModal(false)}
+              className="absolute inset-0 bg-slate-900/90 backdrop-blur-md"
+            ></motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="relative w-full max-w-5xl max-h-full bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-2xl ${
+                    selectedEvidence.displayMode === 'activity' ? 'bg-blue-50 text-blue-600' :
+                    selectedEvidence.displayMode === 'certificate' ? 'bg-amber-50 text-amber-600' :
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    {selectedEvidence.displayMode === 'activity' ? <ImageIcon className="w-5 h-5" /> :
+                     selectedEvidence.displayMode === 'certificate' ? <Award className="w-5 h-5" /> :
+                     <FileText className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm md:text-base font-extrabold text-slate-900 leading-tight pr-4">{selectedEvidence.name}</h3>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-0.5">
+                      {selectedEvidence.displayMode === 'activity' ? '📁 ชุดร่องรอยกิจกรรมเชิงประจักษ์' : 
+                       selectedEvidence.displayMode === 'certificate' ? '🏆 เกียรติบัตรและเครื่องยืนยันความสำเร็จ' : '📄 เอกสาร/คู่มือ/หลักฐานประกอบ'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors border-none bg-transparent cursor-pointer text-slate-400 hover:text-slate-900"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 bg-[#f8fafc]">
+                
+                {/* 1. Header Hero / Description Section */}
+                {selectedEvidence.description && (
+                  <div className="max-w-3xl mx-auto text-center space-y-4">
+                    <div className="inline-block p-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-bold uppercase tracking-widest px-3">
+                      รายละเอียดประกอบการพิจารณา
+                    </div>
+                    <div className="bg-white/80 p-8 rounded-[2.5rem] border border-blue-100/50 shadow-xl shadow-blue-900/5 relative">
+                      <p className="text-sm md:text-base text-slate-700 leading-relaxed font-sans whitespace-pre-wrap text-left">
+                        {selectedEvidence.description}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Primary Showcase Section */}
+                <div id="showcase-content" className="max-w-4xl mx-auto">
+                  {selectedEvidence.displayMode === 'activity' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {selectedEvidence.url && (
+                        <div className="space-y-3">
+                           <div className="bg-white p-2 rounded-[2rem] shadow-xl shadow-blue-900/5 ring-1 ring-slate-200/60 overflow-hidden">
+                            <div className="bg-slate-950 rounded-[1.5rem] aspect-[4/3] overflow-hidden group relative">
+                              <img src={selectedEvidence.url} alt="Activity Primary" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+                              <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[9px] text-white font-bold border border-white/20">ภาพกิจกรรมหลัก</div>
+                            </div>
+                           </div>
+                           <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Image Focus 01</p>
+                        </div>
+                      )}
+                      {selectedEvidence.secondaryUrl && (
+                        <div className="space-y-3">
+                          <div className="bg-white p-2 rounded-[2rem] shadow-xl shadow-blue-900/5 ring-1 ring-slate-200/60 overflow-hidden">
+                            <div className="bg-slate-950 rounded-[1.5rem] aspect-[4/3] overflow-hidden group relative">
+                              <img src={selectedEvidence.secondaryUrl} alt="Activity Secondary" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+                              <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[9px] text-white font-bold border border-white/20">ภาพกิจกรรมเสริม</div>
+                            </div>
+                          </div>
+                          <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Image Focus 02</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedEvidence.displayMode === 'certificate' ? (
+                    <div className="max-w-3xl mx-auto">
+                      <div className="bg-white p-2 sm:p-4 rounded-[2rem] shadow-2xl shadow-amber-900/10 ring-1 ring-amber-200/50 overflow-hidden group">
+                        <img 
+                          src={selectedEvidence.url} 
+                          alt="Certificate Detail" 
+                          className="w-full h-auto rounded-[1.5rem] group-hover:scale-[1.02] transition-transform duration-700" 
+                        />
+                      </div>
+                      <div className="mt-6 flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-2 text-amber-600">
+                          <Award className="w-5 h-5" />
+                          <span className="text-sm font-bold uppercase tracking-tighter">Verified Achievement</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">เกียรติบัตรฉบับจริงถูกจัดเก็บในระบบคลังดิจิทัล สพฐ.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* General or Document/PDF View */
+                    <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl overflow-hidden min-h-[60vh] flex flex-col ring-1 ring-slate-200/50">
+                      <div className="px-6 py-4 bg-slate-900 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <FileText className="w-5 h-5 text-rose-500" />
+                           <span className="text-xs font-bold text-white">เอกสารตรวจสอบ (Online Documentation)</span>
+                        </div>
+                        <a 
+                          href={selectedEvidence.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[10px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition-all no-underline font-bold flex items-center gap-2"
+                        >
+                          <Download className="w-3.5 h-3.5" /> 🚀 เปิดดู/ดาวน์โหลดต้นฉบับ
+                        </a>
+                      </div>
+                      
+                      <div className="flex-1 bg-slate-100 relative min-h-[500px]">
+                        {selectedEvidence.url.toLowerCase().endsWith('.pdf') ? (
+                          <iframe 
+                            src={`${selectedEvidence.url}#toolbar=0`} 
+                            className="w-full h-full border-none absolute inset-0"
+                            title="Evidence PDF Preview"
+                          ></iframe>
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center bg-slate-50">
+                            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-6">
+                              <ExternalLink className="w-10 h-10" />
+                            </div>
+                            <h4 className="text-xl font-extrabold text-slate-900 mb-2">ลิงก์เอกสารภายนอก</h4>
+                            <p className="text-sm text-slate-500 max-w-sm mb-8">เนื่องจากเอกสารนี้ถูกเก็บไว้ใน Drive หรือเว็บภายนอก ระบบไม่สามารถแสดงตัวอย่างได้ในทันที โปรดคลิกที่ปุ่มด้านล่างเพื่อตรวจสอบ</p>
+                            <a 
+                              href={selectedEvidence.url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="px-8 py-3.5 bg-slate-900 text-white rounded-2xl text-sm font-bold shadow-xl hover:bg-slate-800 transition-all no-underline flex items-center gap-3"
+                            >
+                              ตรวจสอบเอกสารหลักฐาน <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pb-10 max-w-3xl mx-auto text-center">
+                   <p className="text-[10px] text-slate-400 font-medium">หมายเหตุ: ข้อมูลและหลักฐานทั้งหมดถูกรับรองโดยผู้ยื่นประเมินและสถานศึกษาต้นสังกัด</p>
+                </div>
+              </div>
+
+              {/* Bottom Sticky Action */}
+              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">PA DIGITAL SHOWCASE v2.0</span>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="w-full sm:w-auto px-10 py-3.5 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-all border-none cursor-pointer shadow-lg active:scale-95"
+                >
+                  เสร็จสิ้นการตรวจสอบ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
