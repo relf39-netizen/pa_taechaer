@@ -473,12 +473,22 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
         }
       }));
 
-      const stored = localStorage.getItem("pa_user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
+      const storedUser = localStorage.getItem("pa_user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
         parsed.mustChangePassword = false;
         parsed.password = newPasswordVal.trim();
         localStorage.setItem("pa_user", JSON.stringify(parsed));
+      }
+
+      const storedTeacherData = localStorage.getItem("pa_teacher_data");
+      if (storedTeacherData) {
+        const parsed = JSON.parse(storedTeacherData);
+        if (parsed.teacher) {
+          parsed.teacher.mustChangePassword = false;
+          parsed.teacher.password = newPasswordVal.trim();
+          localStorage.setItem("pa_teacher_data", JSON.stringify(parsed));
+        }
       }
 
       setNewPasswordVal("");

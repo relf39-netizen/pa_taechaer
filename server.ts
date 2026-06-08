@@ -480,17 +480,31 @@ async function createMySQLTables() {
       \`avatar_image\` LONGTEXT DEFAULT NULL,
       \`theme_color\` VARCHAR(30) DEFAULT NULL,
       \`role\` VARCHAR(50) DEFAULT 'teacher',
-      \`school_smiss_code\` VARCHAR(20) DEFAULT NULL
+      \`school_smiss_code\` VARCHAR(20) DEFAULT NULL,
+      \`password\` VARCHAR(255) DEFAULT '123456',
+      \`must_change_password\` TINYINT(1) DEFAULT 1,
+      \`id_card\` VARCHAR(20) DEFAULT NULL,
+      \`username\` VARCHAR(100) DEFAULT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
   // Alter for backward compatibility if columns aren't there
-  try {
-    await mysqlPool.query("ALTER TABLE `pa_teachers` ADD COLUMN `role` VARCHAR(50) DEFAULT 'teacher'");
-  } catch (e) {}
-  try {
-    await mysqlPool.query("ALTER TABLE `pa_teachers` ADD COLUMN `school_smiss_code` VARCHAR(20) DEFAULT NULL");
-  } catch (e) {}
+  const alterCols = [
+    { name: "role", def: "VARCHAR(50) DEFAULT 'teacher'" },
+    { name: "school_smiss_code", def: "VARCHAR(20) DEFAULT NULL" },
+    { name: "password", def: "VARCHAR(255) DEFAULT '123456'" },
+    { name: "must_change_password", def: "TINYINT(1) DEFAULT 1" },
+    { name: "id_card", def: "VARCHAR(20) DEFAULT NULL" },
+    { name: "username", def: "VARCHAR(100) DEFAULT NULL" }
+  ];
+
+  for (const col of alterCols) {
+    try {
+      await mysqlPool.query(`ALTER TABLE \`pa_teachers\` ADD COLUMN \`${col.name}\` ${col.def}`);
+    } catch (e) {
+      // Column might already exist
+    }
+  }
 
   // 1.5 Schools table
   await mysqlPool.query(`
@@ -578,6 +592,10 @@ async function loadDataFromMySQL() {
         themeColor: row.theme_color || undefined,
         role: (row.role as 'teacher' | 'school_admin') || 'teacher',
         schoolSmissCode: row.school_smiss_code || undefined,
+        password: row.password || "123456",
+        mustChangePassword: row.must_change_password === 1,
+        idCard: row.id_card || "",
+        username: row.username || row.id_card || "",
       };
       loadedTeachers[teacher.email] = teacher;
 
@@ -671,8 +689,8 @@ async function syncStateToMySQL(state: DBState) {
       const t = state.teachers[email];
       await mysqlPool.query(
         `INSERT INTO \`pa_teachers\` (
-          id, email, name, position, school, affiliation, phone, slug, academic_year, status, date_created, header_image, avatar_image, theme_color, role, school_smiss_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, email, name, position, school, affiliation, phone, slug, academic_year, status, date_created, header_image, avatar_image, theme_color, role, school_smiss_code, password, must_change_password, id_card, username
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           name = VALUES(name),
           position = VALUES(position),
@@ -686,7 +704,11 @@ async function syncStateToMySQL(state: DBState) {
           avatar_image = VALUES(avatar_image),
           theme_color = VALUES(theme_color),
           role = VALUES(role),
-          school_smiss_code = VALUES(school_smiss_code)`,
+          school_smiss_code = VALUES(school_smiss_code),
+          password = VALUES(password),
+          must_change_password = VALUES(must_change_password),
+          id_card = VALUES(id_card),
+          username = VALUES(username)`,
         [
           t.id,
           t.email,
@@ -703,7 +725,11 @@ async function syncStateToMySQL(state: DBState) {
           t.avatarImage || null,
           t.themeColor || null,
           t.role || 'teacher',
-          t.schoolSmissCode || null
+          t.schoolSmissCode || null,
+          t.password || '123456',
+          t.mustChangePassword ? 1 : 0,
+          t.idCard || null,
+          t.username || t.idCard || null
         ]
       );
 
