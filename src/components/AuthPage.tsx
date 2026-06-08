@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { User, Lock, Mail, School, Landmark, Phone, Globe, Sparkles, LogIn, ArrowRight } from "lucide-react";
+import { User, Lock, Mail, School, Landmark, Phone, Globe, Sparkles, LogIn, ArrowRight, Shield } from "lucide-react";
 
 interface AuthPageProps {
   onLoginSuccess: (user: any, data: any) => void;
@@ -13,7 +13,7 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
   // Login states
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginRole, setLoginRole] = useState<"teacher" | "admin">("teacher");
+  const [loginRole, setLoginRole] = useState<"teacher" | "admin" | "evaluator">("teacher");
 
   // Registration states
   const [regType, setRegType] = useState<"teacher" | "school">("teacher");
@@ -308,11 +308,19 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
             </button>
             <button
               onClick={() => { setActiveTab("admin"); setLoginRole("admin"); setMessage(null); }}
-              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "admin" || (activeTab === "login" && loginRole === "admin") ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
+              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "admin" && loginRole === "admin" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
               id="tab-admin"
             >
               <User className="inline-block w-4 h-4 mr-2" />
-              ระบบดูแลระบบ (Admin)
+              ดูแลระบบ
+            </button>
+            <button
+              onClick={() => { setActiveTab("login"); setLoginRole("evaluator"); setMessage(null); }}
+              className={`flex-1 py-4 text-center font-medium text-sm transition-all focus:outline-none ${activeTab === "login" && loginRole === "evaluator" ? "text-amber-400 bg-slate-800 border-b-2 border-amber-400 font-semibold" : "hover:text-white"}`}
+              id="tab-evaluator"
+            >
+              <Shield className="inline-block w-4 h-4 mr-2" />
+              กรรมการ
             </button>
           </div>
 
@@ -337,11 +345,17 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
               >
                 <div>
                   <h3 className="text-xl font-bold font-sans text-slate-800 mb-2">
-                    {loginRole === "admin" ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" : "เข้าสู่ระบบด้วยหมายเลขประจำตัวประชาชน"}
+                    {loginRole === "admin" 
+                      ? "เข้าใช้งานในฐานะผู้ดูแลระบบสูงสุด (Super Admin)" 
+                      : loginRole === "evaluator" 
+                        ? "เข้าใช้งานในฐานะคณะกรรมการประเมิน (PA Committee)"
+                        : "เข้าสู่ระบบด้วยหมายเลขประจำตัวประชาชน"}
                   </h3>
                   <p className="text-sm font-sans text-slate-500">
                     {loginRole === "admin" 
                       ? "อนุมัติโรงเรียนเครือข่าย มอบอำนวยการระบบและตรวจสอบสิทธิ์แอดมินย่อย" 
+                      : loginRole === "evaluator"
+                        ? "ตรวจสอบพอร์ตโฟลิโอและบันทึกคะแนนการประเมิน PA ของคุณครู"
                       : "กรอกหมายเลขประจำตัวประชาชน 13 หลัก และรหัสผ่านเพื่อเข้าใช้งาน"}
                   </p>
                   
@@ -351,23 +365,30 @@ export default function AuthPage({ onLoginSuccess, onNavigateHome }: AuthPagePro
                       <p>กรุณาระบุชื่อผู้ใช้และรหัสผ่านที่คุณได้รับการแจ้งจากทางส่วนกลางเพื่อเข้าสู่ระบบควบคุม</p>
                     </div>
                   )}
+
+                  {loginRole === "evaluator" && (
+                    <div className="mt-4 p-3.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-xl text-xs font-sans">
+                      <p className="font-bold mb-1">📋 สำหรับคณะกรรมการประเมิน:</p>
+                      <p>ใช้ชื่อผู้ใช้งานและรหัสผ่านที่แอดมินของโรงเรียนกำหนดให้เพื่อเข้าสู่ระบบให้คะแนน</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold font-sans text-slate-600 uppercase tracking-wider mb-2">
-                      {loginRole === "admin" ? "ชื่อบัญชีผู้ดูแลระบบ" : "หมายเลขประจำตัวประชาชน (13 หลัก)"}
+                      {loginRole === "admin" || loginRole === "evaluator" ? "ชื่อบัญชีผู้ใช้งาน" : "หมายเลขประจำตัวประชาชน (13 หลัก)"}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail className="h-5 w-5 text-slate-400" />
+                        {loginRole === "evaluator" ? <Shield className="h-5 w-5 text-slate-400" /> : <Mail className="h-5 w-5 text-slate-400" />}
                       </div>
                       <input
                         type="text"
                         required
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder={loginRole === "admin" ? "admin" : "ตัวอย่าง: 1234567890123"}
+                        placeholder={loginRole === "admin" ? "admin" : loginRole === "evaluator" ? "Username ของคุณ" : "ตัวอย่าง: 1234567890123"}
                         className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-sans transition-all"
                         id="login-email-input"
                       />

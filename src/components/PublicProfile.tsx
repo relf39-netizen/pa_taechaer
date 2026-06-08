@@ -15,6 +15,7 @@ interface PublicProfileProps {
   } | null;
   onBackToSystem?: () => void;
   onLoginToEdit?: () => void;
+  isEvaluatorView?: boolean;
 }
 
 export interface ThemePreset {
@@ -140,7 +141,13 @@ export const THEMES: Record<string, ThemePreset> = {
   }
 };
 
-export default function PublicProfile({ slug, initialProvidedTeacherData, onBackToSystem, onLoginToEdit }: PublicProfileProps) {
+export default function PublicProfile({ 
+  slug, 
+  initialProvidedTeacherData, 
+  onBackToSystem, 
+  onLoginToEdit,
+  isEvaluatorView = false
+}: PublicProfileProps) {
   const [profileData, setProfileData] = useState<TeacherData | null>(
     initialProvidedTeacherData ? initialProvidedTeacherData.data : null
   );
@@ -282,7 +289,7 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
             <span className="text-slate-300 font-medium">ระบบรายงานข้อตกลงในการพัฒนางาน (PA) &bull; แฟ้มสะสมงานดิจิทัลเพื่อเลื่อนวิทยฐานะ</span>
           </div>
           <div className="flex items-center gap-2.5">
-            {onBackToSystem && (
+            {onBackToSystem && !isEvaluatorView && (
               <button
                 onClick={onBackToSystem}
                 className="text-slate-300 hover:text-white bg-transparent border-none cursor-pointer transition-colors text-xs font-semibold"
@@ -290,8 +297,8 @@ export default function PublicProfile({ slug, initialProvidedTeacherData, onBack
                 🏠 กลับสารบบหลัก
               </button>
             )}
-            <span className="text-slate-700 hidden sm:inline">|</span>
-            {onLoginToEdit && (
+            {onBackToSystem && !isEvaluatorView && <span className="text-slate-700 hidden sm:inline">|</span>}
+            {onLoginToEdit && !isEvaluatorView && (
               <button
                 onClick={onLoginToEdit}
                 className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer scale-95 md:scale-100 hover:scale-[1.02] transform transition-all text-xs flex items-center gap-1"

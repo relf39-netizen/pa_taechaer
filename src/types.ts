@@ -80,10 +80,31 @@ export interface TeacherData {
   challenge: PACleaningChallenge;
 }
 
+export interface Evaluator {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  position: string;
+  schoolSmissCode: string;
+  role: 'evaluator';
+}
+
+export interface EvaluationResult {
+  teacherId: string;
+  evaluatorId: string;
+  part1Score: number; // 1-4 stars
+  part2Score: number; // 1-4 stars
+  comment?: string;
+  updatedAt: string;
+}
+
 export interface DBState {
   teachers: Record<string, Teacher>; // teacherId or email as key
   schools: Record<string, School>; // smissCode as key
   teacherDataList: Record<string, TeacherData>; // teacherId as key
+  evaluators: Record<string, Evaluator>; // id or username as key
+  evaluations: EvaluationResult[];
   adminConfig: {
     username: string;
     passwordHash: string;

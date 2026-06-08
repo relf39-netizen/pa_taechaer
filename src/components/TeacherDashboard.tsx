@@ -201,6 +201,13 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
   const [newCommName, setNewCommName] = useState("");
   const [newCommTitle, setNewCommTitle] = useState("ผู้ทรงคุณวุฒิ");
 
+  // Evaluator management states
+  const [evaluators, setEvaluators] = useState<any[]>([]);
+  const [newEvalName, setNewEvalName] = useState("");
+  const [newEvalUsername, setNewEvalUsername] = useState("");
+  const [newEvalPassword, setNewEvalPassword] = useState("");
+  const [newEvalPosition, setNewEvalPosition] = useState("กรรมการการประเมิน PA");
+
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTestingGas, setIsTestingGas] = useState(false);
@@ -269,10 +276,68 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
       if (tData.success) {
         setSchoolTeachers(tData.teachers || []);
       }
+
+      // Fetch Evaluator accounts
+      const eRes = await fetch(`/api/school/evaluators?smissCode=${data.teacher.schoolSmissCode}`);
+      const eData = await eRes.json();
+      if (eData.success) {
+        setEvaluators(eData.evaluators || []);
+      }
     } catch (e) {
       console.error("Error loading admin school tools:", e);
     } finally {
       setIsSchoolLoading(false);
+    }
+  };
+
+  const handleAddEvaluator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEvalName || !newEvalUsername || !newEvalPassword) {
+      triggerToast("error", "กรุณากรอกข้อมูลกรรมการให้ครบถ้วน");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/school/evaluators/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smissCode: data.teacher.schoolSmissCode,
+          name: newEvalName,
+          username: newEvalUsername,
+          password: newEvalPassword,
+          position: newEvalPosition
+        })
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        triggerToast("success", "สร้างบัญชีกรรมการสำเร็จ");
+        setEvaluators([...evaluators, resData.evaluator]);
+        setNewEvalName("");
+        setNewEvalUsername("");
+        setNewEvalPassword("");
+      } else {
+        throw new Error(resData.message);
+      }
+    } catch (err: any) {
+      triggerToast("error", err.message);
+    }
+  };
+
+  const handleDeleteEvaluator = async (id: string) => {
+    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีกรรมการนี้?")) return;
+    try {
+      const res = await fetch("/api/school/evaluators/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        triggerToast("success", "ลบบัญชีกรรมการสำเร็จ");
+        setEvaluators(evaluators.filter(e => e.id !== id));
+      }
+    } catch (err: any) {
+      triggerToast("error", err.message);
     }
   };
 
@@ -2763,6 +2828,105 @@ export default function TeacherDashboard({ initialData, onLogout }: TeacherDashb
                         </button>
                       </div>
                     </form>
+                  </div>
+
+                  {/* BOTTOM ROW: EVALUATOR ACCOUNT MANAGEMENT */}
+                  <div className="lg:col-span-12 bg-white rounded-xl border border-slate-200 p-5 shadow-sm mt-6">
+                    <div className="pb-3 border-b border-slate-100 mb-4">
+                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        🕵️ บัญชีรายชื่อกรรมการผู้ประเมิน ({evaluators.length} บัญชี)
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        สร้างและจัดการบัญชีสำหรับกรรมการเพื่อให้สามารถล็อกอินเข้ามาชมพอร์ตโฟลิโอและให้คะแนนการประเมิน PA
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Form to add evaluator */}
+                      <div className="md:col-span-1 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">➕ เพิ่มบัญชีกรรมการใหม่</h4>
+                        <form onSubmit={handleAddEvaluator} className="space-y-3">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ชื่อ-นามสกุลกรรมการ</label>
+                            <input
+                              type="text"
+                              value={newEvalName}
+                              onChange={(e) => setNewEvalName(e.target.value)}
+                              placeholder="เช่น นายปรีชา สุขใจ"
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                            <input
+                              type="text"
+                              value={newEvalUsername}
+                              onChange={(e) => setNewEvalUsername(e.target.value)}
+                              placeholder="เช่น eval001"
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">รหัสผ่าน (Password)</label>
+                            <input
+                              type="text"
+                              value={newEvalPassword}
+                              onChange={(e) => setNewEvalPassword(e.target.value)}
+                              placeholder="ระบุรหัสผ่าน"
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">ตำแหน่ง/หน้าที่</label>
+                            <input
+                              type="text"
+                              value={newEvalPosition}
+                              onChange={(e) => setNewEvalPosition(e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white outline-none focus:border-blue-400"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold border-none cursor-pointer transition-colors"
+                          >
+                            สร้างบัญชีกรรมการ
+                          </button>
+                        </form>
+                      </div>
+
+                      {/* List of evaluators */}
+                      <div className="md:col-span-2 space-y-3">
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">📁 รายชื่อบัญชีกรรมการในระบบ</h4>
+                        {evaluators.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400 italic text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            ยังไม่มีการสร้างบัญชีกรรมการสำหรับโรงเรียนนี้
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[350px] pr-1">
+                            {evaluators.map((evaluator) => (
+                              <div key={evaluator.id} className="p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-colors shadow-sm flex flex-col justify-between">
+                                <div className="space-y-1">
+                                  <h5 className="font-bold text-slate-800 text-xs">{evaluator.name}</h5>
+                                  <p className="text-[10px] text-slate-500">{evaluator.position}</p>
+                                  <div className="mt-2 text-[10px] bg-slate-100 p-2 rounded-lg space-y-1">
+                                    <p className="font-mono text-slate-700"><span className="font-bold">Username:</span> {evaluator.username}</p>
+                                    <p className="font-mono text-slate-700"><span className="font-bold">Password:</span> {evaluator.password}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEvaluator(evaluator.id)}
+                                  className="mt-3 flex items-center justify-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-[10px] font-bold border border-rose-100 cursor-pointer transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  ลบบัญชีนี้
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

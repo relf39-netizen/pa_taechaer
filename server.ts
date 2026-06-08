@@ -273,7 +273,9 @@ function getInitialState(): DBState {
     adminConfig: {
       username: "admin",
       passwordHash: "admin123" // Plain for the mock system demo, easily configurable
-    }
+    },
+    evaluators: {},
+    evaluations: []
   };
 
   // Populate Mana's indicators
@@ -368,6 +370,8 @@ function loadDatabase(): DBState {
       if (!parsed.schools) {
         parsed.schools = {};
       }
+      if (!parsed.evaluators) parsed.evaluators = {};
+      if (!parsed.evaluations) parsed.evaluations = [];
       return parsed;
     }
   } catch (error) {
@@ -816,6 +820,18 @@ app.post("/api/auth/login", (req, res) => {
       });
     }
     return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่าน Admin ไม่ถูกต้อง" });
+  }
+
+  if (role === "evaluator") {
+    const evaluator = Object.values(localDB.evaluators || {}).find(e => e.username === email && e.password === password);
+    if (evaluator) {
+      return res.json({
+        success: true,
+        message: "เข้าสู่ระบบคณะกรรมการ (Committee) สำเร็จ",
+        user: { ...evaluator, role: "evaluator" }
+      });
+    }
+    return res.status(401).json({ success: false, message: "ชื่อผู้ใช้หรือรหัสผ่านกรรมการไม่ถูกต้อง" });
   }
 
   // Teacher/Director/SchoolAdmin login (Flexible look up by email, username or idCard)
@@ -1580,6 +1596,112 @@ app.post("/api/admin/teachers/set-school-admin", (req, res) => {
   });
 });
 
+
+// --- EVALUATOR (COMMITTEE) APIS ---
+
+// GET /api/school/evaluators - List evaluators for a school
+app.get("/api/school/evaluators", (req, res) => {
+  const { smissCode } = req.query;
+  if (!smissCode) return res.status(400).json({ success: false, message: "Missing smissCode" });
+  
+  const list = Object.values(localDB.evaluators || {}).filter(e => e.schoolSmissCode === smissCode);
+  return res.json({ success: true, evaluators: list });
+});
+
+// POST /api/school/evaluators/add - Add new evaluator
+app.post("/api/school/evaluators/add", (req, res) => {
+  const { smissCode, name, username, password, position } = req.body;
+  
+  if (!smissCode || !name || !username || !password) {
+    return res.status(400).json({ success: false, message: "กรุณาระบุข้อมูลให้ครบถ้วน" });
+  }
+
+  // Check if username exists globally
+  const exists = Object.values(localDB.evaluators || {}).find(e => e.username === username);
+  if (exists) {
+    return res.status(400).json({ success: false, message: "ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว" });
+  }
+
+  const id = "eval-" + Date.now();
+  const newEvaluator = {
+    id,
+    name,
+    username,
+    password,
+    position: position || "กรรมการ",
+    role: "evaluator" as const,
+    schoolSmissCode: smissCode
+  };
+
+  localDB.evaluators[id] = newEvaluator;
+  saveDatabase(localDB);
+
+  return res.json({ success: true, message: "เพิ่มบัญชีกรรมการสำเร็จ", evaluator: newEvaluator });
+});
+
+// DELETE /api/school/evaluators/delete
+app.post("/api/school/evaluators/delete", (req, res) => {
+  const { id } = req.body;
+  if (!id || !localDB.evaluators[id]) {
+    return res.status(404).json({ success: false, message: "ไม่พบข้อมูลกรรมการ" });
+  }
+
+  delete localDB.evaluators[id];
+  saveDatabase(localDB);
+  return res.json({ success: true, message: "ลบบัญชีกรรมการเรียบร้อยแล้ว" });
+});
+
+// GET /api/evaluator/teachers - List teachers for evaluation
+app.get("/api/evaluator/teachers", (req, res) => {
+  const { evaluatorId } = req.query;
+  const evaluator = localDB.evaluators[evaluatorId as string];
+  if (!evaluator) return res.status(404).json({ success: false, message: "Unauthorized" });
+
+  const teachers = Object.values(localDB.teachers).filter(t => t.schoolSmissCode === evaluator.schoolSmissCode && t.status === "approved");
+  
+  // Attach scores if exist
+  const teachersWithScores = teachers.map(t => {
+    const evaluation = (localDB.evaluations || []).find(ev => ev.teacherId === t.id && ev.evaluatorId === evaluatorId);
+    return {
+      ...t,
+      evaluation: evaluation || null
+    };
+  });
+
+  return res.json({ success: true, teachers: teachersWithScores });
+});
+
+// POST /api/evaluator/evaluate - Save evaluation
+app.post("/api/evaluator/evaluate", (req, res) => {
+  const { evaluatorId, teacherId, part1Score, part2Score, comment } = req.body;
+  
+  if (!evaluatorId || !teacherId) {
+    return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+  }
+
+  if (!localDB.evaluations) localDB.evaluations = [];
+
+  // Find or create evaluation
+  let evIndex = localDB.evaluations.findIndex(ev => ev.teacherId === teacherId && ev.evaluatorId === evaluatorId);
+  
+  const result = {
+    teacherId,
+    evaluatorId,
+    part1Score: Number(part1Score),
+    part2Score: Number(part2Score),
+    comment: comment || "",
+    updatedAt: new Date().toISOString()
+  };
+
+  if (evIndex > -1) {
+    localDB.evaluations[evIndex] = result;
+  } else {
+    localDB.evaluations.push(result);
+  }
+
+  saveDatabase(localDB);
+  return res.json({ success: true, message: "บันทึกผลการประเมินเรียบร้อยแล้ว" });
+});
 
 // Serve static or client files via Vite
 async function startServer() {

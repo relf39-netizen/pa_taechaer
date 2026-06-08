@@ -9,10 +9,11 @@ import AuthPage from "./components/AuthPage";
 import TeacherDashboard from "./components/TeacherDashboard";
 import PublicProfile from "./components/PublicProfile";
 import AdminPanel from "./components/AdminPanel";
+import EvaluatorDashboard from "./components/EvaluatorDashboard";
 
 export default function App() {
   // Navigation Routing States
-  const [currentView, setCurrentView] = useState<"home" | "auth" | "dashboard" | "admin" | "public_profile">("home");
+  const [currentView, setCurrentView] = useState<"home" | "auth" | "dashboard" | "admin" | "public_profile" | "evaluator">("home");
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
 
   // Auth States
@@ -42,6 +43,8 @@ export default function App() {
           setCurrentUser(parsedUser);
           if (parsedUser.role === "admin") {
             setCurrentView("admin");
+          } else if (parsedUser.role === "evaluator") {
+            setCurrentView("evaluator");
           } else {
             setCurrentView("dashboard");
             if (storedData) {
@@ -80,6 +83,8 @@ export default function App() {
     localStorage.setItem("pa_user", JSON.stringify(user));
     if (user.role === "admin") {
       setCurrentView("admin");
+    } else if (user.role === "evaluator") {
+      setCurrentView("evaluator");
     } else {
       setActiveTeacherData(data);
       localStorage.setItem("pa_teacher_data", JSON.stringify(data));
@@ -148,6 +153,14 @@ export default function App() {
       {/* 4. ACTIVE CENTRAL ADMINISTRATION PANEL */}
       {currentView === "admin" && (
         <AdminPanel 
+          onLogout={handleLogout} 
+        />
+      )}
+
+      {/* 4.5 EVALUATOR DASHBOARD */}
+      {currentView === "evaluator" && currentUser && (
+        <EvaluatorDashboard 
+          evaluator={currentUser} 
           onLogout={handleLogout} 
         />
       )}
